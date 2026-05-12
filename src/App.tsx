@@ -370,6 +370,7 @@ function MiniFrankStarlingCurve({ preload, contractility, kind = "LV" }) {
   );
 }
 
+
 function AvOpenMiniCard({ avOpeningFraction, hMin }) {
   const effectiveAvOpeningFraction = hMin <= 1 ? Math.max(avOpeningFraction, 0.15) : avOpeningFraction;
   let display = "Closed";
@@ -383,6 +384,61 @@ function AvOpenMiniCard({ avOpeningFraction, hMin }) {
       <div className="flex items-center justify-between gap-3">
         <div><div className="text-xs font-medium uppercase tracking-wide text-slate-500">AV opening</div><div className="text-xs text-slate-500">{sub}</div></div>
         <div className="text-2xl font-bold tabular-nums text-slate-950">{display}</div>
+      </div>
+    </div>
+  );
+}
+
+function QuizPulmonaryExamCard({ pcwp }) {
+  let status = "Lungs clear";
+  let subtext = "Optimized LVAD filling pressures";
+  let detail = "No crackles or pulmonary congestion on exam.";
+  let emoji = "🫁";
+  let cardClasses = "border-slate-200 bg-white";
+  let textClasses = "text-slate-800";
+  let badgeClasses = "bg-slate-100 text-slate-700 border-slate-200";
+
+  if (pcwp >= 24) {
+    status = "Diffuse crackles";
+    subtext = "Orthopnea / pulmonary edema pattern";
+    detail = "Markedly elevated left-sided filling pressure with a wet-lung exam.";
+    emoji = "🫁💧💧";
+    cardClasses = "border-rose-300 bg-rose-50";
+    textClasses = "text-rose-800";
+    badgeClasses = "bg-rose-100 text-rose-800 border-rose-200";
+  } else if (pcwp >= 18) {
+    status = "Bibasal crackles";
+    subtext = "Shortness of breath";
+    detail = "Elevated left-sided filling pressure; this is where things start to fall off the wagon.";
+    emoji = "🫁💧";
+    cardClasses = "border-orange-300 bg-orange-50";
+    textClasses = "text-orange-800";
+    badgeClasses = "bg-orange-100 text-orange-800 border-orange-200";
+  } else if (pcwp >= 12) {
+    status = "Lungs mostly clear";
+    subtext = "Near upper target filling range";
+    detail = "Still generally optimized for an LVAD patient, but closer to the congestion threshold.";
+    emoji = "🫁";
+    cardClasses = "border-amber-200 bg-amber-50";
+    textClasses = "text-amber-800";
+    badgeClasses = "bg-amber-100 text-amber-800 border-amber-200";
+  }
+
+  return (
+    <div className={`rounded-3xl border p-5 shadow-sm ${cardClasses}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Pulmonary Exam</div>
+          <div className="mt-3 text-5xl leading-none">{emoji}</div>
+        </div>
+        <div className="max-w-xs text-right">
+          <div className={`text-lg font-black ${textClasses}`}>{status}</div>
+          <div className="mt-1 text-sm font-semibold text-slate-700">{subtext}</div>
+          <div className="mt-2 text-xs leading-5 text-slate-600">{detail}</div>
+          <div className={`mt-3 inline-flex rounded-xl border px-2 py-1 font-mono text-xs font-bold ${badgeClasses}`}>
+            PCWP/LVEDP {format(pcwp, 1)} mmHg
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -630,6 +686,7 @@ export default function LVADFlowLab() {
   const [hidePiValue, setHidePiValue] = useState(false);
   const [showAllRpmCurves, setShowAllRpmCurves] = useState(false);
   const [advancedPhysiologyMode, setAdvancedPhysiologyMode] = useState(false);
+  const [quizMode, setQuizMode] = useState(false);
   const [showAssumptions, setShowAssumptions] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState("free");
   const [monitorTick, setMonitorTick] = useState(0);
@@ -815,6 +872,7 @@ export default function LVADFlowLab() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => setAdvancedPhysiologyMode((value) => !value)} variant={advancedPhysiologyMode ? "default" : "outline"} className="rounded-2xl">{advancedPhysiologyMode ? "Advanced physiology on" : "Advanced physiology off"}</Button>
+            <Button onClick={() => setQuizMode((value) => !value)} variant={quizMode ? "default" : "outline"} className="rounded-2xl">{quizMode ? "Quiz mode on" : "Quiz mode off"}</Button>
             <Button onClick={() => setShowPreloadLimit((value) => !value)} variant={showPreloadLimit ? "default" : "outline"} className="rounded-2xl">{showPreloadLimit ? "Preload cap on" : "Preload cap off"}</Button>
             <Button onClick={() => setPaused((value) => !value)} variant="outline" className="rounded-2xl">{paused ? "Play oscillation" : "Pause at mean flow"}</Button>
             <Button onClick={reset} variant="outline" className="rounded-2xl"><MiniIcon type="reset" className="mr-2 h-4 w-4" />Reset</Button>
@@ -834,6 +892,7 @@ export default function LVADFlowLab() {
               <RpmCard rpm={rpm} onDecrease={decreaseRpm} onIncrease={increaseRpm} showAllCurves={showAllRpmCurves} onToggleShowAllCurves={() => setShowAllRpmCurves((value) => !value)} />
               <ControllerStatCard title="PI" value={format(displayedPi, 1)} unit="" sub={model.suctionMotionActive ? "PI event" : "((Qmax - Qmin) / Qmean) x 10"} hidden={hidePiValue} onToggleHidden={() => setHidePiValue((value) => !value)} />
             </div>
+            {quizMode ? <QuizPulmonaryExamCard pcwp={lvPreload} /> : null}
             <Card className="rounded-3xl shadow-sm"><CardContent className="p-5">
               <div className="mb-3 flex items-center gap-2"><MiniIcon type="info" className="h-5 w-5 text-slate-600" /><div className="text-lg font-bold">Teaching interpretation</div></div>
               <div className="flex flex-wrap items-center gap-2"><Badge className="rounded-xl px-3 py-1 text-sm">{model.status}</Badge></div>
