@@ -535,19 +535,46 @@ function LvPressureWaveformCard({ model, map, pcwp }) {
   const lvPressureAt = (t) => {
     const phase = t % 1;
 
-    // Isovolumic contraction and systolic ejection-like dome.
-    const upstroke = smoothStep(0.10, 0.24, phase);
-    const relaxation = 1 - smoothStep(0.44, 0.62, phase);
-    const systolicEnvelope = upstroke * relaxation;
+    // Rounded LV systolic dome. The pressure now rises quickly, peaks smoothly,
+    // then falls without the broad flat plateau that made the first pass look clipped.
+    const upstroke = smoothStep(0.08, 0.24, phase);
+    const relaxation = 1 - smoothStep(0.42, 0.64, phase);
+    const dome = 1 - 0.13 * Math.pow((phase - 0.34) / 0.22, 2);
+    const systolicEnvelope = clamp(upstroke * relaxation * dome, 0, 1);
 
     // Small early-diastolic dip and late-diastolic atrial kick make the tracing feel less triangular.
     const earlyDiastolicDip = -2.0 * Math.exp(-Math.pow((phase - 0.70) / 0.10, 2));
     const atrialKick = 2.5 * Math.exp(-Math.pow((phase - 0.95) / 0.055, 2));
 
-    // If the AV opens, allow a subtle systolic shoulder/flattening near MAP rather than overshooting.
-    const avOpenClamp = model.avOpeningFraction > 0 ? map + 2 : yMax;
-    const rawPressure = pcwp + systolicEnvelope * (model.lvSystolicPressure - pcwp) + earlyDiastolicDip + atrialKick;
-    return clamp(Math.min(rawPressure, avOpenClamp), 0, yMax);
+    // Let the LV curve approach MAP during valve opening, but avoid a hard clamp/flat top.
+    const systolicTarget = model.avOpeningFraction > 0 ? Math.min(model.lvSystolicPressure, map + 4) : model.lvSystolicPressure;
+    const rawPressure = pcwp + systolicEnvelope * (systolicTarget - pcwp) + earlyDiastolicDip + atrialKick;
+    return clamp(rawPressure, 0, yMax);
+  };
+
+  const aorticPressureAt = (t) => {
+    const phase = t % 1;
+    const avOpenAmount = clamp(model.avOpeningFraction, 0, 1);
+
+    // If the AV is closed, the aortic pressure is nearly non-pulsatile around MAP.
+    // With AV opening, add a Wiggers-like arterial upstroke, gentle decay, and dicrotic notch.
+    const arterialUpstroke = smoothStep(0.16, 0.28, phase);
+    const arterialDecay = 1 - smoothStep(0.30, 0.86, phase);
+    const systolicPulse = arterialUpstroke * arterialDecay;
+    const dicroticNotch = -0.10 * Math.exp(-Math.pow((phase - 0.50) / 0.035, 2));
+    const reflectedWave = 0.06 * Math.exp(-Math.pow((phase - 0.58) / 0.08, 2));
+    const arterialShape = clamp(systolicPulse + dicroticNotch + reflectedWave, -0.15, 1);
+
+    const pulsePressure = 4 + 28 * avOpenAmount;
+    const nonPulsatileDrift = 1.5 * Math.sin(2 * Math.PI * phase - Math.PI / 5) * (1 - avOpenAmount);
+    const candidatePressure = map + nonPulsatileDrift + avOpenAmount * pulsePressure * arterialShape;
+
+    // During systolic AV opening, LV and aortic pressure should nearly meet.
+    const lvPressure = lvPressureAt(t);
+    const systolicWindow = smoothStep(0.16, 0.28, phase) * (1 - smoothStep(0.42, 0.56, phase));
+    const coupledPressure = lerp(candidatePressure, lvPressure, avOpenAmount * systolicWindow * 0.85);
+
+    return clamp(coupledPressure, 0, yMax);
   };
 
   const lvadFlowAt = (t) => {
@@ -577,6 +604,10 @@ function LvPressureWaveformCard({ model, map, pcwp }) {
 
   const flowPath = points
     .map((point, index) => `${index === 0 ? "M" : "L"} ${xScale(point.t).toFixed(1)} ${flowYScale(lvadFlowAt(point.t)).toFixed(1)}`)
+    .join(" ");
+
+  const aorticPath = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${xScale(point.t).toFixed(1)} ${yScale(aorticPressureAt(point.t)).toFixed(1)}`)
     .join(" ");
 
   const gridPressures = [0, 40, 80, 120];
@@ -619,11 +650,15 @@ function LvPressureWaveformCard({ model, map, pcwp }) {
         <text x={width - margin.right - 4} y={yScale(pcwp) - 6} textAnchor="end" className="fill-orange-700 text-[11px] font-bold">PCWP/LVEDP {format(pcwp, 1)}</text>
         <line x1={margin.left} x2={width - margin.right} y1={yScale(map)} y2={yScale(map)} stroke="#64748b" strokeWidth="1.5" strokeDasharray="5 5" opacity="0.75" />
         <text x={width - margin.right - 4} y={yScale(map) - 6} textAnchor="end" className="fill-slate-600 text-[11px] font-bold">MAP {format(map, 0)}</text>
+        <path d={aorticPath} fill="none" stroke="#be123c" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round" opacity="0.88" />
         <path d={path} fill="none" stroke="#0f172a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
         <path d={flowPath} fill="none" stroke="#0284c7" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
         <line y1={margin.top} y2={height - margin.bottom} stroke="#0f172a" strokeWidth="1.5" opacity="0.18">
           <animateMotion dur={`${waveformDurationSeconds}s`} repeatCount="indefinite" path={cursorPath} />
         </line>
+        <circle r="4.5" fill="#be123c">
+          <animateMotion dur={`${waveformDurationSeconds}s`} repeatCount="indefinite" path={aorticPath} />
+        </circle>
         <circle r="4.5" fill="#0f172a">
           <animateMotion dur={`${waveformDurationSeconds}s`} repeatCount="indefinite" path={path} />
         </circle>
@@ -636,11 +671,21 @@ function LvPressureWaveformCard({ model, map, pcwp }) {
         <text x={width / 2} y={height - 10} textAnchor="middle" className="fill-slate-600 text-[12px] font-semibold">Time across three cardiac cycles, synced to HQ-dot cycle timing</text>
         <text transform={`translate(18 ${height / 2}) rotate(-90)`} textAnchor="middle" className="fill-slate-600 text-[12px] font-semibold">LV pressure (mmHg)</text>
         <text transform={`translate(${width - 6} ${height / 2}) rotate(90)`} textAnchor="middle" className="fill-sky-600 text-[12px] font-semibold">LVAD flow (L/min)</text>
+        <g>
+          <rect x={margin.left + 10} y={margin.top + 8} width="252" height="28" rx="10" fill="white" opacity="0.82" />
+          <line x1={margin.left + 24} x2={margin.left + 46} y1={margin.top + 23} y2={margin.top + 23} stroke="#0f172a" strokeWidth="3" />
+          <text x={margin.left + 52} y={margin.top + 27} className="fill-slate-700 text-[11px] font-bold">LV</text>
+          <line x1={margin.left + 86} x2={margin.left + 108} y1={margin.top + 23} y2={margin.top + 23} stroke="#be123c" strokeWidth="3" />
+          <text x={margin.left + 114} y={margin.top + 27} className="fill-rose-700 text-[11px] font-bold">Ao</text>
+          <line x1={margin.left + 154} x2={margin.left + 176} y1={margin.top + 23} y2={margin.top + 23} stroke="#0284c7" strokeWidth="3" />
+          <text x={margin.left + 182} y={margin.top + 27} className="fill-sky-700 text-[11px] font-bold">LVAD flow</text>
+        </g>
       </svg>
-      <div className="mt-2 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
+      <div className="mt-2 grid gap-2 text-xs text-slate-600 md:grid-cols-4">
         <div className="rounded-xl bg-slate-50 p-2"><span className="font-bold text-slate-800">Diastolic floor:</span> PCWP/LVEDP {format(pcwp, 1)} mmHg</div>
         <div className="rounded-xl bg-slate-50 p-2"><span className="font-bold text-slate-800">Systolic peak:</span> LVSP {format(model.lvSystolicPressure, 1)} mmHg</div>
-        <div className="rounded-xl bg-slate-50 p-2"><span className="font-bold text-slate-800">Flow trace:</span> LVAD flow moves from Qd {format(model.qDiastole, 2)} to Qs {format(model.qSystole, 2)} L/min</div>
+        <div className="rounded-xl bg-slate-50 p-2"><span className="font-bold text-slate-800">Ao trace:</span> {model.avOpeningFraction > 0 ? "pulsatile with AV opening" : "nearly flat when AV closed"}</div>
+        <div className="rounded-xl bg-slate-50 p-2"><span className="font-bold text-slate-800">Flow trace:</span> Qd {format(model.qDiastole, 2)} → Qs {format(model.qSystole, 2)} L/min</div>
       </div>
     </div>
   );
