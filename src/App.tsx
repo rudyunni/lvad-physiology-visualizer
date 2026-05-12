@@ -264,8 +264,27 @@ function MiniIcon({ type = "dot", className = "h-4 w-4 text-slate-600" }) {
   return <svg {...common}><circle cx="12" cy="12" r="4" /></svg>;
 }
 
-function SliderControl({ label, value, setValue, min, max, step = 1, unit, iconType, helper, compact = false }) {
+function SliderControl({
+  label,
+  value,
+  setValue,
+  min,
+  max,
+  step = 1,
+  unit,
+  iconType,
+  helper,
+  compact = false,
+  alertTone = "normal",
+  alertNote = "",
+}) {
   const numericValue = Number(value);
+  const alertStyles = {
+    normal: "bg-slate-100 text-slate-900 border-transparent",
+    yellow: "bg-yellow-50 text-yellow-800 border-yellow-200",
+    orange: "bg-orange-50 text-orange-800 border-orange-200",
+    red: "bg-rose-50 text-rose-800 border-rose-200",
+  };
   return (
     <div className={`${compact ? "space-y-1 rounded-xl p-2" : "space-y-2 rounded-2xl p-4"} border bg-white/70 shadow-sm`}>
       <div className="flex items-start justify-between gap-3">
@@ -276,8 +295,11 @@ function SliderControl({ label, value, setValue, min, max, step = 1, unit, iconT
             {helper && !compact ? <div className="mt-0.5 text-xs leading-snug text-slate-500">{helper}</div> : null}
           </div>
         </div>
-        <div className={`shrink-0 rounded-xl bg-slate-100 px-2 py-1 ${compact ? "text-xs" : "text-sm"} font-semibold tabular-nums text-slate-900`}>
-          {value}{unit ? ` ${unit}` : ""}
+        <div
+          className={`shrink-0 rounded-xl border px-2 py-1 text-right ${compact ? "text-xs" : "text-sm"} font-semibold tabular-nums ${alertStyles[alertTone] || alertStyles.normal}`}
+        >
+          <div>{value}{unit ? ` ${unit}` : ""}</div>
+          {alertNote ? <div className="mt-0.5 text-[10px] font-bold leading-none tracking-normal">{alertNote}</div> : null}
         </div>
       </div>
       <Slider value={[numericValue]} min={min} max={max} step={step} onValueChange={(v) => setValue(v[0])} />
@@ -547,7 +569,8 @@ function HQGraph({ model, paused, showPreloadLimit, flipAxes, setFlipAxes, showH
   const qCap = model.theoreticalPreloadCap;
   const activeCurveMaxFlow = getCurveParams(model.rpm).q0;
   const showPreloadCap = showPreloadLimit && qCap < activeCurveMaxFlow - 0.05;
-  const meanX = px(model.pumpFlow, model.head), meanY = py(model.pumpFlow, model.head);
+  const meanCurveHead = interpolateHeadForFlow(model.curve, model.pumpFlow);
+  const meanX = px(model.pumpFlow, meanCurveHead), meanY = py(model.pumpFlow, meanCurveHead);
   const qMinX = px(qMin, interpolateHeadForFlow(model.curve, qMin)), qMaxX = px(qMax, interpolateHeadForFlow(model.curve, qMax));
   const qMinY = py(qMin, interpolateHeadForFlow(model.curve, qMin)), qMaxY = py(qMax, interpolateHeadForFlow(model.curve, qMax));
   const lowFlowThreshold = 2.5;
@@ -747,6 +770,12 @@ export default function LVADFlowLab() {
   const displayedPower = model.suctionMotionActive ? suctionPowerNadir + (model.powerWatts - suctionPowerNadir) * suctionRecoveryFraction : model.powerWatts;
   const displayedPi = model.suctionMotionActive ? suctionPiPeak - (suctionPiPeak - model.piMean) * suctionRecoveryFraction : model.piMean;
   const activeCase = CASE_PRESETS.find((casePreset) => casePreset.id === selectedCaseId);
+  const pcwpAlertTone = lvPreload > 24 ? "red" : lvPreload > 18 ? "orange" : "normal";
+  const pcwpAlertNote = lvPreload > 18 ? "shortness of breath" : "";
+  const cvpAlertTone = rvPreload > 18 ? "red" : rvPreload > 15 ? "yellow" : "normal";
+  const cvpAlertNote = rvPreload > 15 ? "worsening leg swelling" : "";
+  const mapAlertTone = map < 60 ? "red" : map < 65 ? "yellow" : "normal";
+  const mapAlertNote = map < 60 ? "dizziness" : "";
 
   const applyCasePreset = (caseId) => {
     setSelectedCaseId(caseId);
@@ -856,6 +885,33 @@ export default function LVADFlowLab() {
                         <p className="mt-1 text-xs leading-5 text-slate-600">Advanced mode keeps the same visualizer but links volume changes to PCWP and CVP through nonlinear LV/RV stiffness. Stiffness is intentionally mild in the mid Frank-Starling range and rises mainly near the plateau. Poor RV function raises CVP more and transfers less volume to left-sided filling.</p>
                         <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">Current: {complianceProfile.lvLabel}; {complianceProfile.rvLabel}</div>
                       </div>
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <div className="font-bold text-slate-800">MAP → wedge pressure</div>
+                        <p className="mt-1 text-xs leading-5 text-slate-600">When MAP is changed directly, the model assumes afterload changes can secondarily shift PCWP/LVEDP. The effect is larger when LV contractile reserve is present, because a more functional LV is more sensitive to loading conditions.</p>
+                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">ΔPCWP = (ΔMAP / 10) × clamp(LV EF / 35, 0, 1)</div>
+                      </div>
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <div className="font-bold text-slate-800">MAP → CVP</div>
+                        <p className="mt-1 text-xs leading-5 text-slate-600">In simple mode, MAP-related PCWP changes are followed by CVP through the RV contractility-derived CVP:PCWP ratio. In advanced mode, CVP changes according to the pressure change in PCWP multiplied by an RV/LV stiffness coupling factor.</p>
+                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">Simple: CVP = PCWP × CVP:PCWP ratio</div>
+                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">Advanced: ΔCVP = ΔPCWP × clamp((RV stiffness / LV stiffness) × 0.65, 0.25, 1.6)</div>
+                      </div>
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <div className="font-bold text-slate-800">LV contractility → wedge pressure</div>
+                        <p className="mt-1 text-xs leading-5 text-slate-600">Below an EF/contractility of about 35%, the model mainly changes AV-opening behavior. Once LV contractility rises above 35%, additional native recovery lowers PCWP/LVEDP more strongly, representing improved native LV unloading.</p>
+                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">If EF &gt; 35: ΔPCWP = -Δ(EF above 35) × (10 / 15)</div>
+                      </div>
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <div className="font-bold text-slate-800">RV contractility → CVP:PCWP ratio</div>
+                        <p className="mt-1 text-xs leading-5 text-slate-600">RV contractility controls how much right-sided pressure is required to support left-sided filling. Poor RV contractility produces a higher CVP:PCWP ratio; better RV contractility lowers the ratio.</p>
+                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">CVP:PCWP = clamp(1.25 - 0.023 × RV contractility, 0.45, 1.25)</div>
+                      </div>
+                      <div className="rounded-xl bg-slate-50 p-3 md:col-span-2">
+                        <div className="font-bold text-slate-800">RPM → wedge pressure</div>
+                        <p className="mt-1 text-xs leading-5 text-slate-600">Changing RPM secondarily changes PCWP/LVEDP in the direction expected from LV unloading. Increasing RPM lowers PCWP/LVEDP; decreasing RPM raises PCWP/LVEDP. In this version, CVP is not directly changed by RPM unless another rule or mode links the pressure change forward.</p>
+                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">RPM increase: ΔPCWP = -ΔRPM / 100</div>
+                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">RPM decrease: ΔPCWP = +ΔRPM / 100</div>
+                      </div>
                     </div>
                   </div>
                 ) : null}
@@ -866,9 +922,52 @@ export default function LVADFlowLab() {
             <div className="rounded-3xl border bg-white/80 p-3 shadow-sm">
               <div className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Physiology controls</div>
               <div className="grid grid-cols-1 gap-3">
-                <SliderControl compact={advancedPhysiologyMode} label="MAP / afterload" value={map} setValue={updateMapAbsolute} min={55} max={115} step={1} unit="mmHg" iconType="gauge" helper="Higher MAP raises diastolic head pressure, tends to reduce flow, and modestly raises PCWP/LVEDP." />
-                <SliderControl compact={advancedPhysiologyMode} label="PCWP / LVEDP" value={format(lvPreload, 1)} setValue={updatePcwp} min={2} max={35} step={1} unit="mmHg" iconType="waves" helper="Approximate LV filling pressure / pump inflow pressure during diastole. CVP tracks this unless RV contractility changes." />
-                <SliderControl compact={advancedPhysiologyMode} label="CVP" value={format(rvPreload, 1)} setValue={() => {}} min={2} max={35} step={1} unit="mmHg" iconType="waves" helper={advancedPhysiologyMode ? `${complianceProfile.rvLabel}; CVP changes with RV stiffness and volume transfer.` : `Tracks PCWP by CVP:PCWP ratio ${format(rvPreload / Math.max(lvPreload, 1), 2)}. Adjust RV contractility to change it.`} />
+                <SliderControl
+                  compact={advancedPhysiologyMode}
+                  label="MAP / afterload"
+                  value={map}
+                  setValue={updateMapAbsolute}
+                  min={55}
+                  max={115}
+                  step={1}
+                  unit="mmHg"
+                  iconType="gauge"
+                  alertTone={mapAlertTone}
+                  alertNote={mapAlertNote}
+                  helper="Higher MAP raises diastolic head pressure, tends to reduce flow, and modestly raises PCWP/LVEDP."
+                />
+                <SliderControl
+                  compact={advancedPhysiologyMode}
+                  label="PCWP / LVEDP"
+                  value={format(lvPreload, 1)}
+                  setValue={updatePcwp}
+                  min={2}
+                  max={35}
+                  step={1}
+                  unit="mmHg"
+                  iconType="waves"
+                  alertTone={pcwpAlertTone}
+                  alertNote={pcwpAlertNote}
+                  helper="Approximate LV filling pressure / pump inflow pressure during diastole. CVP tracks this unless RV contractility changes."
+                />
+                <SliderControl
+                  compact={advancedPhysiologyMode}
+                  label="CVP"
+                  value={format(rvPreload, 1)}
+                  setValue={() => {}}
+                  min={2}
+                  max={35}
+                  step={1}
+                  unit="mmHg"
+                  iconType="waves"
+                  alertTone={cvpAlertTone}
+                  alertNote={cvpAlertNote}
+                  helper={
+                    advancedPhysiologyMode
+                      ? `${complianceProfile.rvLabel}; CVP changes with RV stiffness and volume transfer.`
+                      : `Tracks PCWP by CVP:PCWP ratio ${format(rvPreload / Math.max(lvPreload, 1), 2)}. Adjust RV contractility to change it.`
+                  }
+                />
                 <SliderControl compact={advancedPhysiologyMode} label="LV contractility / EF" value={lvContractility} setValue={updateLvContractility} min={0} max={50} step={1} unit="%" iconType="heart" helper={advancedPhysiologyMode ? `AV-opening threshold still applies; lower EF is treated as ${complianceProfile.lvLabel}.` : "AV-opening EF threshold shifts with MAP, RPM unloading, and PCWP/LVEDP preload recruitment."} />
                 <SliderControl compact={advancedPhysiologyMode} label="RV contractility" value={rvContractility} setValue={updateRvContractility} min={0} max={50} step={1} unit="%" iconType="heart" helper={advancedPhysiologyMode ? `Lower RV function increases right-sided stiffness and blunts forward transfer to PCWP.` : "0% = poor RV contractility; 50% = maximum RV contractility. Higher RV contractility lowers CVP:PCWP."} />
                 {advancedPhysiologyMode ? <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-3"><div className="mb-2 text-xs font-bold uppercase tracking-wide text-indigo-700">Advanced volume/compliance</div><div className="grid grid-cols-2 gap-2"><Button onClick={volumeChallenge} variant="outline" className="rounded-xl bg-white text-xs">Give fluid</Button><Button onClick={diurese} variant="outline" className="rounded-xl bg-white text-xs">Diurese</Button></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-white p-2"><div className="font-bold text-slate-700">LV</div><div className="text-slate-500">{complianceProfile.lvLabel}</div><div className="mt-1 font-mono text-slate-700">stiffness {format(complianceProfile.lvStiffness, 2)}</div></div><div className="rounded-xl bg-white p-2"><div className="font-bold text-slate-700">RV</div><div className="text-slate-500">{complianceProfile.rvLabel}</div><div className="mt-1 font-mono text-slate-700">stiffness {format(complianceProfile.rvStiffness, 2)}</div></div></div><p className="mt-2 text-xs leading-5 text-indigo-800">Fluid now changes PCWP and CVP with different slopes. Poor RV function raises CVP more and transfers less volume to left-sided filling.</p></div> : null}
