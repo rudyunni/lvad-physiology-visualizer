@@ -518,8 +518,14 @@ function LvPressureWaveformCard({ model, map, pcwp }) {
   const margin = { top: 22, right: 26, bottom: 34, left: 54 };
   const yMin = 0;
   const yMax = 140;
-  const xScale = (t) => margin.left + t * (width - margin.left - margin.right);
+  const flowMin = 0;
+  const flowMax = FLOW_AXIS_MAX;
+  const cycleCount = 3;
+  const singleCycleDurationSeconds = 1.05;
+  const waveformDurationSeconds = cycleCount * singleCycleDurationSeconds;
+  const xScale = (t) => margin.left + (t / cycleCount) * (width - margin.left - margin.right);
   const yScale = (pressure) => margin.top + ((yMax - pressure) / (yMax - yMin)) * (height - margin.top - margin.bottom);
+  const flowYScale = (flow) => margin.top + ((flowMax - flow) / (flowMax - flowMin)) * (height - margin.top - margin.bottom);
 
   const smoothStep = (edge0, edge1, value) => {
     const t = clamp((value - edge0) / (edge1 - edge0), 0, 1);
@@ -544,8 +550,24 @@ function LvPressureWaveformCard({ model, map, pcwp }) {
     return clamp(Math.min(rawPressure, avOpenClamp), 0, yMax);
   };
 
-  const points = Array.from({ length: 180 }, (_, index) => {
-    const t = index / 179;
+  const lvadFlowAt = (t) => {
+    const phase = t % 1;
+
+    const upstroke = smoothStep(0.10, 0.24, phase);
+    const relaxation = 1 - smoothStep(0.44, 0.62, phase);
+    const systolicEnvelope = upstroke * relaxation;
+
+    // This mirrors the same diastole-to-systole motion used by the HQ dot.
+    // Flow is lowest near diastolic high-head conditions and rises as LV pressure rises.
+    const baselineCycleFlow = model.qDiastole + systolicEnvelope * (model.qSystole - model.qDiastole);
+
+    // During suction-like behavior, add a late-cycle drop to visually echo the snap-back behavior.
+    const suctionDrop = model.suctionMotionActive ? 0.65 * Math.exp(-Math.pow((phase - 0.82) / 0.055, 2)) : 0;
+    return clamp(baselineCycleFlow - suctionDrop, flowMin, flowMax);
+  };
+
+  const points = Array.from({ length: 420 }, (_, index) => {
+    const t = (index / 419) * cycleCount;
     return { t, pressure: lvPressureAt(t) };
   });
 
@@ -553,7 +575,14 @@ function LvPressureWaveformCard({ model, map, pcwp }) {
     .map((point, index) => `${index === 0 ? "M" : "L"} ${xScale(point.t).toFixed(1)} ${yScale(point.pressure).toFixed(1)}`)
     .join(" ");
 
+  const flowPath = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${xScale(point.t).toFixed(1)} ${flowYScale(lvadFlowAt(point.t)).toFixed(1)}`)
+    .join(" ");
+
   const gridPressures = [0, 40, 80, 120];
+  const gridFlows = [0, 2, 4, 6, 8, 10];
+  const cycleMarkers = [1, 2];
+  const cursorPath = `M ${margin.left} ${margin.top} L ${width - margin.right} ${margin.top}`;
   const avStatus = model.avOpeningFraction > 0 ? `AV opening ${format(model.avOpeningFraction * 100, 0)}% of systole` : "AV closed / no effective opening";
 
   return (
@@ -575,23 +604,43 @@ function LvPressureWaveformCard({ model, map, pcwp }) {
             <text x={margin.left - 10} y={yScale(pressure) + 4} textAnchor="end" className="fill-slate-400 text-[11px]">{pressure}</text>
           </g>
         ))}
+        {gridFlows.map((flow) => (
+          <g key={`flow-grid-${flow}`}>
+            <text x={width - margin.right + 10} y={flowYScale(flow) + 4} textAnchor="start" className="fill-sky-500 text-[11px] font-semibold">{flow}</text>
+          </g>
+        ))}
+        {cycleMarkers.map((cycle) => (
+          <g key={`cycle-marker-${cycle}`}>
+            <line x1={xScale(cycle)} x2={xScale(cycle)} y1={margin.top} y2={height - margin.bottom} stroke="#cbd5e1" strokeWidth="1" strokeDasharray="4 6" />
+            <text x={xScale(cycle) + 5} y={height - margin.bottom - 8} className="fill-slate-400 text-[10px] font-semibold">cycle {cycle + 1}</text>
+          </g>
+        ))}
         <line x1={margin.left} x2={width - margin.right} y1={yScale(pcwp)} y2={yScale(pcwp)} stroke="#f97316" strokeWidth="1.5" strokeDasharray="5 5" opacity="0.85" />
         <text x={width - margin.right - 4} y={yScale(pcwp) - 6} textAnchor="end" className="fill-orange-700 text-[11px] font-bold">PCWP/LVEDP {format(pcwp, 1)}</text>
         <line x1={margin.left} x2={width - margin.right} y1={yScale(map)} y2={yScale(map)} stroke="#64748b" strokeWidth="1.5" strokeDasharray="5 5" opacity="0.75" />
         <text x={width - margin.right - 4} y={yScale(map) - 6} textAnchor="end" className="fill-slate-600 text-[11px] font-bold">MAP {format(map, 0)}</text>
         <path d={path} fill="none" stroke="#0f172a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={flowPath} fill="none" stroke="#0284c7" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" opacity="0.9" />
+        <line y1={margin.top} y2={height - margin.bottom} stroke="#0f172a" strokeWidth="1.5" opacity="0.18">
+          <animateMotion dur={`${waveformDurationSeconds}s`} repeatCount="indefinite" path={cursorPath} />
+        </line>
         <circle r="4.5" fill="#0f172a">
-          <animateMotion dur="1.25s" repeatCount="indefinite" path={path} />
+          <animateMotion dur={`${waveformDurationSeconds}s`} repeatCount="indefinite" path={path} />
+        </circle>
+        <circle r="4.5" fill="#0284c7">
+          <animateMotion dur={`${waveformDurationSeconds}s`} repeatCount="indefinite" path={flowPath} />
         </circle>
         <line x1={margin.left} x2={width - margin.right} y1={height - margin.bottom} y2={height - margin.bottom} stroke="#334155" strokeWidth="1.25" />
         <line x1={margin.left} x2={margin.left} y1={margin.top} y2={height - margin.bottom} stroke="#334155" strokeWidth="1.25" />
-        <text x={width / 2} y={height - 10} textAnchor="middle" className="fill-slate-600 text-[12px] font-semibold">Time across one cardiac cycle</text>
+        <line x1={width - margin.right} x2={width - margin.right} y1={margin.top} y2={height - margin.bottom} stroke="#0284c7" strokeWidth="1.25" />
+        <text x={width / 2} y={height - 10} textAnchor="middle" className="fill-slate-600 text-[12px] font-semibold">Time across three cardiac cycles, synced to HQ-dot cycle timing</text>
         <text transform={`translate(18 ${height / 2}) rotate(-90)`} textAnchor="middle" className="fill-slate-600 text-[12px] font-semibold">LV pressure (mmHg)</text>
+        <text transform={`translate(${width - 6} ${height / 2}) rotate(90)`} textAnchor="middle" className="fill-sky-600 text-[12px] font-semibold">LVAD flow (L/min)</text>
       </svg>
       <div className="mt-2 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
         <div className="rounded-xl bg-slate-50 p-2"><span className="font-bold text-slate-800">Diastolic floor:</span> PCWP/LVEDP {format(pcwp, 1)} mmHg</div>
         <div className="rounded-xl bg-slate-50 p-2"><span className="font-bold text-slate-800">Systolic peak:</span> LVSP {format(model.lvSystolicPressure, 1)} mmHg</div>
-        <div className="rounded-xl bg-slate-50 p-2"><span className="font-bold text-slate-800">Threshold:</span> AV opens when LV pressure approaches MAP</div>
+        <div className="rounded-xl bg-slate-50 p-2"><span className="font-bold text-slate-800">Flow trace:</span> LVAD flow moves from Qd {format(model.qDiastole, 2)} to Qs {format(model.qSystole, 2)} L/min</div>
       </div>
     </div>
   );
