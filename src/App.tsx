@@ -509,6 +509,92 @@ function QuizPeripheralExamCard({ cvp }) {
       </div>
     </div>
   );
+
+}
+
+function LvPressureWaveformCard({ model, map, pcwp }) {
+  const width = 720;
+  const height = 210;
+  const margin = { top: 22, right: 26, bottom: 34, left: 54 };
+  const yMin = 0;
+  const yMax = 140;
+  const xScale = (t) => margin.left + t * (width - margin.left - margin.right);
+  const yScale = (pressure) => margin.top + ((yMax - pressure) / (yMax - yMin)) * (height - margin.top - margin.bottom);
+
+  const smoothStep = (edge0, edge1, value) => {
+    const t = clamp((value - edge0) / (edge1 - edge0), 0, 1);
+    return t * t * (3 - 2 * t);
+  };
+
+  const lvPressureAt = (t) => {
+    const phase = t % 1;
+
+    // Isovolumic contraction and systolic ejection-like dome.
+    const upstroke = smoothStep(0.10, 0.24, phase);
+    const relaxation = 1 - smoothStep(0.44, 0.62, phase);
+    const systolicEnvelope = upstroke * relaxation;
+
+    // Small early-diastolic dip and late-diastolic atrial kick make the tracing feel less triangular.
+    const earlyDiastolicDip = -2.0 * Math.exp(-Math.pow((phase - 0.70) / 0.10, 2));
+    const atrialKick = 2.5 * Math.exp(-Math.pow((phase - 0.95) / 0.055, 2));
+
+    // If the AV opens, allow a subtle systolic shoulder/flattening near MAP rather than overshooting.
+    const avOpenClamp = model.avOpeningFraction > 0 ? map + 2 : yMax;
+    const rawPressure = pcwp + systolicEnvelope * (model.lvSystolicPressure - pcwp) + earlyDiastolicDip + atrialKick;
+    return clamp(Math.min(rawPressure, avOpenClamp), 0, yMax);
+  };
+
+  const points = Array.from({ length: 180 }, (_, index) => {
+    const t = index / 179;
+    return { t, pressure: lvPressureAt(t) };
+  });
+
+  const path = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${xScale(point.t).toFixed(1)} ${yScale(point.pressure).toFixed(1)}`)
+    .join(" ");
+
+  const gridPressures = [0, 40, 80, 120];
+  const avStatus = model.avOpeningFraction > 0 ? `AV opening ${format(model.avOpeningFraction * 100, 0)}% of systole` : "AV closed / no effective opening";
+
+  return (
+    <div className="rounded-3xl border bg-white p-4 shadow-sm">
+      <div className="mb-2 flex items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-bold text-slate-950">LV Pressure Waveform</div>
+          <div className="text-sm text-slate-500">First-pass Wiggers-style LV pressure tracing driven by PCWP/LVEDP and modeled LV systolic pressure.</div>
+        </div>
+        <div className="rounded-xl border bg-slate-50 px-3 py-1 text-right text-xs font-bold text-slate-600">
+          {avStatus}
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="h-[210px] w-full">
+        <rect x="0" y="0" width={width} height={height} rx="22" fill="#f8fafc" />
+        {gridPressures.map((pressure) => (
+          <g key={`lv-grid-${pressure}`}>
+            <line x1={margin.left} x2={width - margin.right} y1={yScale(pressure)} y2={yScale(pressure)} stroke="#e2e8f0" strokeWidth="1" />
+            <text x={margin.left - 10} y={yScale(pressure) + 4} textAnchor="end" className="fill-slate-400 text-[11px]">{pressure}</text>
+          </g>
+        ))}
+        <line x1={margin.left} x2={width - margin.right} y1={yScale(pcwp)} y2={yScale(pcwp)} stroke="#f97316" strokeWidth="1.5" strokeDasharray="5 5" opacity="0.85" />
+        <text x={width - margin.right - 4} y={yScale(pcwp) - 6} textAnchor="end" className="fill-orange-700 text-[11px] font-bold">PCWP/LVEDP {format(pcwp, 1)}</text>
+        <line x1={margin.left} x2={width - margin.right} y1={yScale(map)} y2={yScale(map)} stroke="#64748b" strokeWidth="1.5" strokeDasharray="5 5" opacity="0.75" />
+        <text x={width - margin.right - 4} y={yScale(map) - 6} textAnchor="end" className="fill-slate-600 text-[11px] font-bold">MAP {format(map, 0)}</text>
+        <path d={path} fill="none" stroke="#0f172a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <circle r="4.5" fill="#0f172a">
+          <animateMotion dur="1.25s" repeatCount="indefinite" path={path} />
+        </circle>
+        <line x1={margin.left} x2={width - margin.right} y1={height - margin.bottom} y2={height - margin.bottom} stroke="#334155" strokeWidth="1.25" />
+        <line x1={margin.left} x2={margin.left} y1={margin.top} y2={height - margin.bottom} stroke="#334155" strokeWidth="1.25" />
+        <text x={width / 2} y={height - 10} textAnchor="middle" className="fill-slate-600 text-[12px] font-semibold">Time across one cardiac cycle</text>
+        <text transform={`translate(18 ${height / 2}) rotate(-90)`} textAnchor="middle" className="fill-slate-600 text-[12px] font-semibold">LV pressure (mmHg)</text>
+      </svg>
+      <div className="mt-2 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
+        <div className="rounded-xl bg-slate-50 p-2"><span className="font-bold text-slate-800">Diastolic floor:</span> PCWP/LVEDP {format(pcwp, 1)} mmHg</div>
+        <div className="rounded-xl bg-slate-50 p-2"><span className="font-bold text-slate-800">Systolic peak:</span> LVSP {format(model.lvSystolicPressure, 1)} mmHg</div>
+        <div className="rounded-xl bg-slate-50 p-2"><span className="font-bold text-slate-800">Threshold:</span> AV opens when LV pressure approaches MAP</div>
+      </div>
+    </div>
+  );
 }
 
 function buildHQCurve({ rpm, obstruction }) {
@@ -960,9 +1046,12 @@ export default function LVADFlowLab() {
               <ControllerStatCard title="PI" value={format(displayedPi, 1)} unit="" sub={model.suctionMotionActive ? "PI event" : "((Qmax - Qmin) / Qmean) x 10"} hidden={hidePiValue} onToggleHidden={() => setHidePiValue((value) => !value)} />
             </div>
             {quizMode ? (
-              <div className="grid gap-3 lg:grid-cols-2">
-                <QuizPulmonaryExamCard pcwp={lvPreload} />
-                <QuizPeripheralExamCard cvp={rvPreload} />
+              <div className="space-y-3">
+                <div className="grid gap-3 lg:grid-cols-2">
+                  <QuizPulmonaryExamCard pcwp={lvPreload} />
+                  <QuizPeripheralExamCard cvp={rvPreload} />
+                </div>
+                <LvPressureWaveformCard model={model} map={map} pcwp={lvPreload} />
               </div>
             ) : null}
             <Card className="rounded-3xl shadow-sm"><CardContent className="p-5">
