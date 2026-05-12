@@ -389,6 +389,7 @@ function AvOpenMiniCard({ avOpeningFraction, hMin }) {
   );
 }
 
+
 function QuizPulmonaryExamCard({ pcwp }) {
   let status = "Lungs clear";
   let subtext = "Optimized LVAD filling pressures";
@@ -437,6 +438,72 @@ function QuizPulmonaryExamCard({ pcwp }) {
           <div className="mt-2 text-xs leading-5 text-slate-600">{detail}</div>
           <div className={`mt-3 inline-flex rounded-xl border px-2 py-1 font-mono text-xs font-bold ${badgeClasses}`}>
             PCWP/LVEDP {format(pcwp, 1)} mmHg
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuizPeripheralExamCard({ cvp }) {
+  let status = "Flat JVP";
+  let subtext = "No peripheral congestion";
+  let detail = "Neck veins are flat and there is no visible leg swelling.";
+  let edema = "No edema";
+  let imageSrc = "/jvp-flat-to5.png";
+  let cardClasses = "border-slate-200 bg-white";
+  let textClasses = "text-slate-800";
+  let badgeClasses = "bg-slate-100 text-slate-700 border-slate-200";
+
+  if (cvp >= 18) {
+    status = "Severely elevated JVP";
+    subtext = "Marked systemic venous congestion";
+    detail = "Severe neck-vein distension with very edematous legs.";
+    edema = "Severe pitting edema";
+    imageSrc = "/jvp-18-up.png";
+    cardClasses = "border-rose-300 bg-rose-50";
+    textClasses = "text-rose-800";
+    badgeClasses = "bg-rose-100 text-rose-800 border-rose-200";
+  } else if (cvp >= 13) {
+    status = "Elevated JVP";
+    subtext = "Systemic venous congestion";
+    detail = "JVP is clearly elevated and leg swelling may be present.";
+    edema = "Moderate edema";
+    imageSrc = "/jvp-13-17.png";
+    cardClasses = "border-orange-300 bg-orange-50";
+    textClasses = "text-orange-800";
+    badgeClasses = "bg-orange-100 text-orange-800 border-orange-200";
+  } else if (cvp >= 5) {
+    status = "Mildly elevated JVP";
+    subtext = "Mild right-sided filling pressure";
+    detail = "JVP is visible low in the neck without major peripheral congestion.";
+    edema = cvp >= 10 ? "Trace edema" : "No edema";
+    imageSrc = "/jvp-5-to-12.png";
+    cardClasses = "border-amber-200 bg-amber-50";
+    textClasses = "text-amber-800";
+    badgeClasses = "bg-amber-100 text-amber-800 border-amber-200";
+  }
+
+  return (
+    <div className={`rounded-3xl border p-5 shadow-sm ${cardClasses}`}>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Peripheral Exam</div>
+          <div className="mt-3 overflow-hidden rounded-2xl border border-white/70 bg-white shadow-sm">
+            <img src={imageSrc} alt={`${status} illustration`} className="h-32 w-32 object-cover md:h-36 md:w-36" />
+          </div>
+        </div>
+        <div className="max-w-xs md:text-right">
+          <div className={`text-lg font-black ${textClasses}`}>{status}</div>
+          <div className="mt-1 text-sm font-semibold text-slate-700">{subtext}</div>
+          <div className="mt-2 text-xs leading-5 text-slate-600">{detail}</div>
+          <div className="mt-3 flex flex-wrap gap-2 md:justify-end">
+            <div className={`inline-flex rounded-xl border px-2 py-1 font-mono text-xs font-bold ${badgeClasses}`}>
+              CVP {format(cvp, 1)} mmHg
+            </div>
+            <div className="inline-flex rounded-xl border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-700">
+              {edema}
+            </div>
           </div>
         </div>
       </div>
@@ -892,7 +959,12 @@ export default function LVADFlowLab() {
               <RpmCard rpm={rpm} onDecrease={decreaseRpm} onIncrease={increaseRpm} showAllCurves={showAllRpmCurves} onToggleShowAllCurves={() => setShowAllRpmCurves((value) => !value)} />
               <ControllerStatCard title="PI" value={format(displayedPi, 1)} unit="" sub={model.suctionMotionActive ? "PI event" : "((Qmax - Qmin) / Qmean) x 10"} hidden={hidePiValue} onToggleHidden={() => setHidePiValue((value) => !value)} />
             </div>
-            {quizMode ? <QuizPulmonaryExamCard pcwp={lvPreload} /> : null}
+            {quizMode ? (
+              <div className="grid gap-3 lg:grid-cols-2">
+                <QuizPulmonaryExamCard pcwp={lvPreload} />
+                <QuizPeripheralExamCard cvp={rvPreload} />
+              </div>
+            ) : null}
             <Card className="rounded-3xl shadow-sm"><CardContent className="p-5">
               <div className="mb-3 flex items-center gap-2"><MiniIcon type="info" className="h-5 w-5 text-slate-600" /><div className="text-lg font-bold">Teaching interpretation</div></div>
               <div className="flex flex-wrap items-center gap-2"><Badge className="rounded-xl px-3 py-1 text-sm">{model.status}</Badge></div>
