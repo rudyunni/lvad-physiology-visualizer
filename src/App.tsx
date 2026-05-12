@@ -547,7 +547,10 @@ function LvPressureWaveformCard({ model, map, pcwp }) {
     const atrialKick = 2.5 * Math.exp(-Math.pow((phase - 0.95) / 0.055, 2));
 
     // Let the LV curve approach MAP during valve opening, but avoid a hard clamp/flat top.
-    const systolicTarget = model.avOpeningFraction > 0 ? Math.min(model.lvSystolicPressure, map + 4) : model.lvSystolicPressure;
+    const systolicTarget =
+      model.avOpeningFraction > 0
+        ? Math.min(Math.max(model.lvSystolicPressure, map + 8), map + 28)
+        : model.lvSystolicPressure;
     const rawPressure = pcwp + systolicEnvelope * (systolicTarget - pcwp) + earlyDiastolicDip + atrialKick;
     return clamp(rawPressure, 0, yMax);
   };
@@ -556,25 +559,48 @@ function LvPressureWaveformCard({ model, map, pcwp }) {
     const phase = t % 1;
     const avOpenAmount = clamp(model.avOpeningFraction, 0, 1);
 
-    // If the AV is closed, the aortic pressure is nearly non-pulsatile around MAP.
-    // With AV opening, add a Wiggers-like arterial upstroke, gentle decay, and dicrotic notch.
-    const arterialUpstroke = smoothStep(0.16, 0.28, phase);
-    const arterialDecay = 1 - smoothStep(0.30, 0.86, phase);
-    const systolicPulse = arterialUpstroke * arterialDecay;
-    const dicroticNotch = -0.10 * Math.exp(-Math.pow((phase - 0.50) / 0.035, 2));
-    const reflectedWave = 0.06 * Math.exp(-Math.pow((phase - 0.58) / 0.08, 2));
-    const arterialShape = clamp(systolicPulse + dicroticNotch + reflectedWave, -0.15, 1);
+    // Valve-event timing for the toy Wiggers diagram.
+    // AV opening begins once LV pressure should exceed aortic end-diastolic pressure.
+    // AV closure occurs near the end of LV systole, followed by a dicrotic notch and slow diastolic runoff.
+    const avOpenStart = 0.22;
+    const avClose = 0.48;
+    const nextAvOpenStart = 1.22;
 
-    const pulsePressure = 4 + 28 * avOpenAmount;
-    const nonPulsatileDrift = 1.5 * Math.sin(2 * Math.PI * phase - Math.PI / 5) * (1 - avOpenAmount);
-    const candidatePressure = map + nonPulsatileDrift + avOpenAmount * pulsePressure * arterialShape;
+    const pulsePressure = 6 + 28 * avOpenAmount;
+    const aorticDiastolicPressure = clamp(map - pulsePressure * 0.35, 45, 115);
+    const aorticSystolicPressure = clamp(map + pulsePressure * 0.65, 55, yMax);
 
-    // During systolic AV opening, LV and aortic pressure should nearly meet.
-    const lvPressure = lvPressureAt(t);
-    const systolicWindow = smoothStep(0.16, 0.28, phase) * (1 - smoothStep(0.42, 0.56, phase));
-    const coupledPressure = lerp(candidatePressure, lvPressure, avOpenAmount * systolicWindow * 0.85);
+    const nearlyFlatClosedValvePressure = map + 1.2 * Math.sin(2 * Math.PI * phase - Math.PI / 6);
 
-    return clamp(coupledPressure, 0, yMax);
+    if (avOpenAmount < 0.05) {
+      return clamp(nearlyFlatClosedValvePressure, 0, yMax);
+    }
+
+    // During AV-open systole, aortic pressure should essentially equal LV pressure.
+    // This makes the LV and Ao waveforms intersect at valve opening and overlap during ejection.
+    if (phase >= avOpenStart && phase <= avClose) {
+      const ejectionProgress = clamp((phase - avOpenStart) / (avClose - avOpenStart), 0, 1);
+      const lvPressure = lvPressureAt(t);
+      const physiologicSystolicCap = aorticSystolicPressure - 2.5 * Math.pow(ejectionProgress, 1.7);
+      return clamp(Math.min(lvPressure, physiologicSystolicCap), 0, yMax);
+    }
+
+    // After AV closure: dicrotic notch, then Windkessel-like exponential diastolic decay.
+    if (phase > avClose) {
+      const diastolicProgress = clamp((phase - avClose) / (nextAvOpenStart - avClose), 0, 1);
+      const pressureAtClosure = clamp(lvPressureAt(avClose), aorticDiastolicPressure, aorticSystolicPressure);
+      const runoff = aorticDiastolicPressure + (pressureAtClosure - aorticDiastolicPressure) * Math.exp(-2.15 * diastolicProgress);
+      const notch = -4.0 * Math.exp(-Math.pow((phase - (avClose + 0.035)) / 0.018, 2));
+      const rebound = 1.6 * Math.exp(-Math.pow((phase - (avClose + 0.075)) / 0.050, 2));
+      return clamp(runoff + notch + rebound, 0, yMax);
+    }
+
+    // Late diastole before valve opening: continue the tail end of the previous beat's runoff.
+    const previousClose = avClose - 1;
+    const diastolicProgress = clamp((phase - previousClose) / (avOpenStart - previousClose), 0, 1);
+    const previousClosurePressure = aorticSystolicPressure;
+    const runoff = aorticDiastolicPressure + (previousClosurePressure - aorticDiastolicPressure) * Math.exp(-2.15 * diastolicProgress);
+    return clamp(runoff, 0, yMax);
   };
 
   const lvadFlowAt = (t) => {
