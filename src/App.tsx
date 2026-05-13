@@ -225,6 +225,69 @@ const CASE_PRESETS = [
   },
 ];
 
+const LESSON_PRESETS = [
+  {
+    id: 1,
+    title: "Speed shifts the HQ curve",
+    subtitle: "Increasing RPM shifts the pump curve upward and to the right.",
+    body: "At the same pressure head, a higher RPM lets the LVAD generate more flow. Decreasing RPM shifts the curve downward and to the left, reducing available flow for a given head pressure.",
+    steps: [
+      "Start at the baseline RPM and watch the active HQ curve.",
+      "Increase RPM one step and notice that the curve shifts upward/right.",
+      "Decrease RPM and notice the opposite shift downward/left.",
+    ],
+    settings: { rpm: 5300, map: 82, lvPreload: 18, rvPreload: 12, lvContractility: 25, rvContractility: 25, aorticInsufficiency: 0, inflowObstruction: 0 },
+  },
+  {
+    id: 2,
+    title: "Afterload moves the operating point",
+    subtitle: "Higher MAP raises head pressure and usually lowers flow.",
+    body: "For a fixed RPM, increasing MAP increases the pressure gradient across the pump. The pump does not jump to a new curve; the operating point moves along the same curve toward lower flow and higher head.",
+    steps: [
+      "Keep RPM fixed.",
+      "Raise MAP and watch the dot move toward higher head and lower flow.",
+      "Lower MAP and watch the dot move toward lower head and higher flow.",
+    ],
+    settings: { rpm: 5400, map: 95, lvPreload: 16, rvPreload: 10, lvContractility: 22, rvContractility: 30, aorticInsufficiency: 0, inflowObstruction: 0 },
+  },
+  {
+    id: 3,
+    title: "Preload supply limits pump flow",
+    subtitle: "The pump can only move the blood delivered to it.",
+    body: "Low LV filling pressure can prevent the pump from reaching the theoretical high-flow portion of the HQ curve. In this state, the patient-side preload cap matters as much as pump speed.",
+    steps: [
+      "Start with a low PCWP/LVEDP state.",
+      "Increase RPM and notice that flow may not rise as much as expected.",
+      "Give volume or increase LV filling and observe how the operating range changes.",
+    ],
+    settings: { rpm: 5400, map: 82, lvPreload: 8, rvPreload: 5, lvContractility: 18, rvContractility: 35, aorticInsufficiency: 0, inflowObstruction: 0 },
+  },
+  {
+    id: 4,
+    title: "RV failure creates preload limitation",
+    subtitle: "High CVP does not always mean adequate LVAD preload.",
+    body: "When RV function is poor, CVP can be high while LV filling remains inadequate. The LVAD may still be preload-limited because the right heart cannot deliver enough flow through the lungs to the left side.",
+    steps: [
+      "Start with high CVP and lower PCWP/LVEDP.",
+      "Observe the CVP:PCWP mismatch.",
+      "Improve RV contractility and watch whether LV filling and pump flow recover.",
+    ],
+    settings: { rpm: 5400, map: 78, lvPreload: 11, rvPreload: 18, lvContractility: 20, rvContractility: 8, aorticInsufficiency: 0, inflowObstruction: 0 },
+  },
+  {
+    id: 5,
+    title: "Native LV recovery changes pulsatility",
+    subtitle: "Better LV function can increase pulsatility without always increasing mean pump flow.",
+    body: "As native LV function improves, the aortic valve may open more often and systolic pump head may fall. This can increase pulsatility while mean pump flow plateaus or even falls depending on loading conditions.",
+    steps: [
+      "Start with partial LV recovery.",
+      "Increase LV contractility and watch AV opening and PI.",
+      "Compare mean pump flow against effective pulsatility.",
+    ],
+    settings: { rpm: 5300, map: 75, lvPreload: 18, rvPreload: 8, lvContractility: 42, rvContractility: 35, aorticInsufficiency: 0, inflowObstruction: 0 },
+  },
+];
+
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 const format = (n, digits = 1) => Number(n).toFixed(digits);
@@ -959,6 +1022,7 @@ export default function LVADFlowLab() {
   const [advancedPhysiologyMode, setAdvancedPhysiologyMode] = useState(false);
   const [quizMode, setQuizMode] = useState(false);
   const [lessonMode, setLessonMode] = useState(false);
+  const [selectedLessonId, setSelectedLessonId] = useState(1);
   const [showAssumptions, setShowAssumptions] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState("free");
   const [monitorTick, setMonitorTick] = useState(0);
@@ -1099,12 +1163,29 @@ export default function LVADFlowLab() {
   const displayedPower = model.suctionMotionActive ? suctionPowerNadir + (model.powerWatts - suctionPowerNadir) * suctionRecoveryFraction : model.powerWatts;
   const displayedPi = model.suctionMotionActive ? suctionPiPeak - (suctionPiPeak - model.piMean) * suctionRecoveryFraction : model.piMean;
   const activeCase = CASE_PRESETS.find((casePreset) => casePreset.id === selectedCaseId);
+  const activeLesson = LESSON_PRESETS.find((lesson) => lesson.id === selectedLessonId) || LESSON_PRESETS[0];
   const pcwpAlertTone = lvPreload > 24 ? "red" : lvPreload > 18 ? "orange" : "normal";
   const pcwpAlertNote = lvPreload > 18 ? "shortness of breath" : "";
   const cvpAlertTone = rvPreload > 18 ? "red" : rvPreload > 15 ? "yellow" : "normal";
   const cvpAlertNote = rvPreload > 15 ? "worsening leg swelling" : "";
   const mapAlertTone = map < 60 ? "red" : map < 65 ? "yellow" : "normal";
   const mapAlertNote = map < 60 ? "dizziness" : "";
+
+  const applyLessonPreset = (lessonId) => {
+    const lesson = LESSON_PRESETS.find((item) => item.id === lessonId);
+    if (!lesson) return;
+    setSelectedLessonId(lessonId);
+    const { settings } = lesson;
+    setRpm(settings.rpm);
+    setMap(settings.map);
+    setLvPreload(settings.lvPreload);
+    setRvPreload(settings.rvPreload);
+    setLvContractility(settings.lvContractility);
+    setRvContractility(settings.rvContractility);
+    setAorticInsufficiency(settings.aorticInsufficiency);
+    setInflowObstruction(settings.inflowObstruction);
+    setSelectedCaseId("free");
+  };
 
   const applyCasePreset = (caseId) => {
     setSelectedCaseId(caseId);
@@ -1131,6 +1212,7 @@ export default function LVADFlowLab() {
     setAorticInsufficiency(0);
     setInflowObstruction(0);
     setSelectedCaseId("free");
+    setSelectedLessonId(1);
   };
 
   return (
@@ -1158,27 +1240,39 @@ export default function LVADFlowLab() {
         {lessonMode ? (
           <Card className="rounded-3xl border border-indigo-200 bg-indigo-50/80 shadow-sm">
             <CardContent className="p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="max-w-4xl">
-                  <div className="text-xs font-black uppercase tracking-wide text-indigo-700">Lesson mode</div>
-                  <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">How LVAD speed shifts the HQ curve</h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-700">
-                    Increasing RPM shifts the pump HQ curve upward and to the right. At the same pressure head, the pump can generate more flow. Decreasing RPM shifts the curve downward and to the left, reducing the available flow for a given head pressure.
-                  </p>
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="max-w-4xl">
+                    <div className="text-xs font-black uppercase tracking-wide text-indigo-700">Lesson mode</div>
+                    <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">{activeLesson.title}</h2>
+                    <p className="mt-1 text-sm font-semibold leading-6 text-indigo-800">{activeLesson.subtitle}</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-700">{activeLesson.body}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1 rounded-2xl border border-indigo-100 bg-white/80 p-1 shadow-sm">
+                    {LESSON_PRESETS.map((lesson) => (
+                      <button
+                        key={lesson.id}
+                        type="button"
+                        onClick={() => applyLessonPreset(lesson.id)}
+                        className={`flex h-9 w-9 items-center justify-center rounded-xl text-sm font-black transition ${
+                          selectedLessonId === lesson.id
+                            ? "bg-slate-950 text-white shadow-sm"
+                            : "text-slate-600 hover:bg-indigo-50"
+                        }`}
+                        aria-label={`Load lesson ${lesson.id}`}
+                      >
+                        {lesson.id}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className="grid min-w-[260px] gap-2 text-xs text-slate-700 sm:grid-cols-3 lg:grid-cols-1">
-                  <div className="rounded-2xl border border-indigo-100 bg-white/80 p-3 shadow-sm">
-                    <div className="font-bold text-slate-900">1. Change RPM</div>
-                    <div className="mt-1 leading-5">Use the RPM arrows below the graph and watch the active curve move.</div>
-                  </div>
-                  <div className="rounded-2xl border border-indigo-100 bg-white/80 p-3 shadow-sm">
-                    <div className="font-bold text-slate-900">2. Keep MAP fixed</div>
-                    <div className="mt-1 leading-5">Then adjust MAP to see how afterload moves the operating point along the curve.</div>
-                  </div>
-                  <div className="rounded-2xl border border-indigo-100 bg-white/80 p-3 shadow-sm">
-                    <div className="font-bold text-slate-900">3. Ask why flow changes</div>
-                    <div className="mt-1 leading-5">Separate pump capability from patient-side preload supply.</div>
-                  </div>
+                <div className="grid gap-2 text-xs text-slate-700 md:grid-cols-3">
+                  {activeLesson.steps.map((step, index) => (
+                    <div key={`${activeLesson.id}-${step}`} className="rounded-2xl border border-indigo-100 bg-white/80 p-3 shadow-sm">
+                      <div className="font-bold text-slate-900">{index + 1}. {index === 0 ? "Start" : index === 1 ? "Adjust" : "Interpret"}</div>
+                      <div className="mt-1 leading-5">{step}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </CardContent>
