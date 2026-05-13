@@ -1438,18 +1438,24 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     </p>
                   )}
                 </div>
-                <div className="grid min-w-[240px] gap-2 text-xs text-slate-700 sm:grid-cols-3 lg:grid-cols-1">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="font-bold text-slate-900">1. Reveal bedside data</div>
-                    <div className="mt-1 leading-5">Click MAP, lung exam, and JVP cards in the physiology panel.</div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="font-bold text-slate-900">1. Start with LVAD parameters</div>
+                  <div className="mt-1 leading-5">
+                    Look at flow, power, PI, and RPM first. Decide whether the pattern suggests afterload, preload limitation, RV failure, suction, recovery, or obstruction.
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="font-bold text-slate-900">2. Interpret LVAD numbers</div>
-                    <div className="mt-1 leading-5">Use flow, power, PI, and RPM before revealing the HQ curve.</div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="font-bold text-slate-900">2. Reveal clinical clues</div>
+                  <div className="mt-1 leading-5">
+                    Sequentially uncover MAP, lung exam, and JVP. Use each clue to refine your differential diagnosis before opening the next one.
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="font-bold text-slate-900">3. Reveal mechanics</div>
-                    <div className="mt-1 leading-5">Show the HQ graph when ready to connect physiology to the operating point.</div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="font-bold text-slate-900">3. Predict, reveal, then test</div>
+                  <div className="mt-1 leading-5">
+                    Predict where the operating point sits on the HQ curve and what changing RPM will do. Then reveal the graph and try the RPM adjustment.
                   </div>
                 </div>
               </div>
