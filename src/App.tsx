@@ -453,6 +453,74 @@ function AvOpenMiniCard({ avOpeningFraction, hMin }) {
 }
 
 
+function QuizMapCard({ map, revealed = true, onReveal = null }) {
+  let status = "Normal MAP";
+  let subtext = "Reasonable afterload range";
+  let detail = "Mean arterial pressure is in a typical LVAD target range.";
+  let cardClasses = "border-slate-200 bg-white";
+  let textClasses = "text-slate-800";
+  let badgeClasses = "bg-slate-100 text-slate-700 border-slate-200";
+
+  if (map >= 100) {
+    status = "Hypertensive";
+    subtext = "High afterload";
+    detail = "Higher MAP increases pump head pressure and can reduce LVAD flow at a fixed speed.";
+    cardClasses = "border-rose-300 bg-rose-50";
+    textClasses = "text-rose-800";
+    badgeClasses = "bg-rose-100 text-rose-800 border-rose-200";
+  } else if (map >= 90) {
+    status = "Elevated MAP";
+    subtext = "Afterload-sensitive range";
+    detail = "MAP is elevated enough that the operating point may move toward higher head and lower flow.";
+    cardClasses = "border-orange-300 bg-orange-50";
+    textClasses = "text-orange-800";
+    badgeClasses = "bg-orange-100 text-orange-800 border-orange-200";
+  } else if (map < 65) {
+    status = "Low MAP";
+    subtext = "Possible low afterload / hypotension";
+    detail = "Low MAP reduces pump head and can increase displayed flow, but may represent poor perfusion clinically.";
+    cardClasses = "border-amber-200 bg-amber-50";
+    textClasses = "text-amber-800";
+    badgeClasses = "bg-amber-100 text-amber-800 border-amber-200";
+  }
+
+  if (!revealed) {
+    return (
+      <button
+        type="button"
+        onClick={onReveal}
+        className="flex min-h-[180px] w-full items-center justify-between rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40"
+      >
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Blood Pressure</div>
+          <div className="mt-3 text-lg font-black text-slate-950">Check MAP</div>
+          <div className="mt-2 max-w-xs text-xs leading-5 text-slate-500">Click to reveal mean arterial pressure and the afterload state.</div>
+        </div>
+        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-700">Reveal</div>
+      </button>
+    );
+  }
+
+  return (
+    <div className={`min-h-[180px] rounded-3xl border p-5 shadow-sm ${cardClasses}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Blood Pressure</div>
+          <div className="mt-3 text-5xl leading-none">🩺</div>
+        </div>
+        <div className="max-w-xs text-right">
+          <div className={`text-lg font-black ${textClasses}`}>{status}</div>
+          <div className="mt-1 text-sm font-semibold text-slate-700">{subtext}</div>
+          <div className="mt-2 text-xs leading-5 text-slate-600">{detail}</div>
+          <div className={`mt-3 inline-flex rounded-xl border px-2 py-1 font-mono text-xs font-bold ${badgeClasses}`}>
+            MAP {format(map, 0)} mmHg
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function QuizPulmonaryExamCard({ pcwp, revealed = true, onReveal = null }) {
   let status = "Lungs clear";
   let subtext = "Optimized LVAD filling pressures";
@@ -1054,6 +1122,7 @@ export default function LVADFlowLab() {
   const [showAllRpmCurves, setShowAllRpmCurves] = useState(false);
 const [advancedPhysiologyMode, setAdvancedPhysiologyMode] = useState(false);
 const [quizMode, setQuizMode] = useState(false);
+const [showMapExam, setShowMapExam] = useState(false);
 const [showPulmonaryExam, setShowPulmonaryExam] = useState(false);
 const [showPeripheralExam, setShowPeripheralExam] = useState(false);
 const [lessonMode, setLessonMode] = useState(false);
@@ -1190,6 +1259,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
 
   useEffect(() => {
     if (!quizMode) {
+      setShowMapExam(false);
       setShowPulmonaryExam(false);
       setShowPeripheralExam(false);
     }
@@ -1435,20 +1505,28 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
             <div className="rounded-3xl border bg-white/80 p-3 shadow-sm">
               <div className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Physiology controls</div>
               <div className="grid grid-cols-1 gap-3">
-                <SliderControl
-                  compact={advancedPhysiologyMode}
-                  label="MAP / afterload"
-                  value={map}
-                  setValue={updateMapAbsolute}
-                  min={55}
-                  max={115}
-                  step={1}
-                  unit="mmHg"
-                  iconType="gauge"
-                  alertTone={mapAlertTone}
-                  alertNote={mapAlertNote}
-                  helper="Higher MAP raises diastolic head pressure, tends to reduce flow, and modestly raises PCWP/LVEDP."
-                />
+                {quizMode ? (
+                  <QuizMapCard
+                    map={map}
+                    revealed={showMapExam}
+                    onReveal={() => setShowMapExam(true)}
+                  />
+                ) : (
+                  <SliderControl
+                    compact={advancedPhysiologyMode}
+                    label="MAP / afterload"
+                    value={map}
+                    setValue={updateMapAbsolute}
+                    min={55}
+                    max={115}
+                    step={1}
+                    unit="mmHg"
+                    iconType="gauge"
+                    alertTone={mapAlertTone}
+                    alertNote={mapAlertNote}
+                    helper="Higher MAP raises diastolic head pressure, tends to reduce flow, and modestly raises PCWP/LVEDP."
+                  />
+                )}
                 {quizMode ? (
                   <QuizPulmonaryExamCard
                     pcwp={lvPreload}
