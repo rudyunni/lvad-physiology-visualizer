@@ -1413,6 +1413,49 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
           </Card>
         ) : null}
 
+        {quizMode ? (
+          <Card className="rounded-3xl border border-slate-200 bg-white/90 shadow-sm backdrop-blur">
+            <CardContent className="p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="max-w-5xl">
+                  <div className="mb-2 flex items-center gap-2">
+                    <MiniIcon type="info" className="h-5 w-5 text-slate-600" />
+                    <div className="text-xs font-black uppercase tracking-wide text-slate-500">Quiz details</div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge className="rounded-xl px-3 py-1 text-sm">{model.status}</Badge>
+                    {activeCase ? <Badge variant="secondary" className="rounded-xl px-3 py-1 text-sm">{activeCase.label}</Badge> : null}
+                  </div>
+                  {activeCase ? (
+                    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Case question</div>
+                      <p className="mt-1 text-sm font-semibold leading-6 text-slate-800">{activeCase.question}</p>
+                      <p className="mt-2 text-xs leading-5 text-slate-500">Case settings loaded. Examine MAP, lungs, and JVP before revealing the hidden hemodynamics.</p>
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm leading-6 text-slate-600">
+                      {showPreloadLimit ? model.explanation : "Preload limiting is currently turned off. The graph is showing the theoretical HQ-curve behavior from pressure-derived head alone, without patient-side flow supply constraints."}
+                    </p>
+                  )}
+                </div>
+                <div className="grid min-w-[240px] gap-2 text-xs text-slate-700 sm:grid-cols-3 lg:grid-cols-1">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="font-bold text-slate-900">1. Reveal bedside data</div>
+                    <div className="mt-1 leading-5">Click MAP, lung exam, and JVP cards in the physiology panel.</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="font-bold text-slate-900">2. Interpret LVAD numbers</div>
+                    <div className="mt-1 leading-5">Use flow, power, PI, and RPM before revealing the HQ curve.</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="font-bold text-slate-900">3. Reveal mechanics</div>
+                    <div className="mt-1 leading-5">Show the HQ graph when ready to connect physiology to the operating point.</div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.45fr_0.85fr]">
           <div className="space-y-5">
             {quizMode ? (
