@@ -1422,40 +1422,38 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     <MiniIcon type="info" className="h-5 w-5 text-slate-600" />
                     <div className="text-xs font-black uppercase tracking-wide text-slate-500">Quiz details</div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge className="rounded-xl px-3 py-1 text-sm">{model.status}</Badge>
-                    {activeCase ? <Badge variant="secondary" className="rounded-xl px-3 py-1 text-sm">{activeCase.label}</Badge> : null}
-                  </div>
+                  <h2 className="text-2xl font-black tracking-tight text-slate-950">Work through the LVAD physiology before revealing the answer</h2>
                   {activeCase ? (
                     <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Case question</div>
+                      <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Case prompt</div>
                       <p className="mt-1 text-sm font-semibold leading-6 text-slate-800">{activeCase.question}</p>
-                      <p className="mt-2 text-xs leading-5 text-slate-500">Case settings loaded. Examine MAP, lungs, and JVP before revealing the hidden hemodynamics.</p>
+                      <p className="mt-2 text-xs leading-5 text-slate-500">Use the controller values first, then reveal clinical clues one at a time before opening the HQ graph.</p>
                     </div>
                   ) : (
-                    <p className="mt-3 text-sm leading-6 text-slate-600">
-                      {showPreloadLimit ? model.explanation : "Preload limiting is currently turned off. The graph is showing the theoretical HQ-curve behavior from pressure-derived head alone, without patient-side flow supply constraints."}
-                    </p>
+                    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Learner task</div>
+                      <p className="mt-1 text-sm leading-6 text-slate-700">
+                        Review the LVAD controller values first. Generate a differential diagnosis before revealing MAP, lung exam, and JVP. Then predict the HQ-curve position and whether increasing or decreasing RPM should improve flow, worsen suction risk, or have limited effect.
+                      </p>
+                    </div>
                   )}
                 </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="font-bold text-slate-900">1. Start with LVAD parameters</div>
-                  <div className="mt-1 leading-5">
-                    Look at flow, power, PI, and RPM first. Decide whether the pattern suggests afterload, preload limitation, RV failure, suction, recovery, or obstruction.
+                <div className="grid min-w-[280px] gap-2 text-xs text-slate-700 sm:grid-cols-2 lg:grid-cols-1">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="font-bold text-slate-900">1. Start with LVAD parameters</div>
+                    <div className="mt-1 leading-5">Look at flow, power, PI, and RPM first. Decide whether the pattern suggests afterload, preload limitation, RV failure, suction, recovery, or obstruction.</div>
                   </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="font-bold text-slate-900">2. Reveal clinical clues</div>
-                  <div className="mt-1 leading-5">
-                    Sequentially uncover MAP, lung exam, and JVP. Use each clue to refine your differential diagnosis before opening the next one.
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="font-bold text-slate-900">2. Build a differential</div>
+                    <div className="mt-1 leading-5">Before clicking anything else, commit to your top two or three explanations for the LVAD numbers.</div>
                   </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                  <div className="font-bold text-slate-900">3. Predict, reveal, then test</div>
-                  <div className="mt-1 leading-5">
-                    Predict where the operating point sits on the HQ curve and what changing RPM will do. Then reveal the graph and try the RPM adjustment.
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="font-bold text-slate-900">3. Reveal clinical clues</div>
+                    <div className="mt-1 leading-5">Sequentially uncover MAP, lung exam, and JVP. Use each clue to narrow or revise your differential.</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="font-bold text-slate-900">4. Predict, reveal, then test</div>
+                    <div className="mt-1 leading-5">Predict where the operating point sits on the HQ curve and what changing RPM will do. Then reveal the graph and try the RPM adjustment.</div>
                   </div>
                 </div>
               </div>
