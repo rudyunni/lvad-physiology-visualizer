@@ -453,7 +453,7 @@ function AvOpenMiniCard({ avOpeningFraction, hMin }) {
 }
 
 
-function QuizPulmonaryExamCard({ pcwp }) {
+function QuizPulmonaryExamCard({ pcwp, revealed = true, onReveal = null }) {
   let status = "Lungs clear";
   let subtext = "Optimized LVAD filling pressures";
   let detail = "No crackles or pulmonary congestion on exam.";
@@ -488,8 +488,25 @@ function QuizPulmonaryExamCard({ pcwp }) {
     badgeClasses = "bg-amber-100 text-amber-800 border-amber-200";
   }
 
+  if (!revealed) {
+    return (
+      <button
+        type="button"
+        onClick={onReveal}
+        className="flex min-h-[180px] w-full items-center justify-between rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40"
+      >
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Pulmonary Exam</div>
+          <div className="mt-3 text-lg font-black text-slate-950">Examine lungs</div>
+          <div className="mt-2 max-w-xs text-xs leading-5 text-slate-500">Click to reveal whether the patient has crackles, pulmonary congestion, or clear lungs.</div>
+        </div>
+        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-700">Reveal</div>
+      </button>
+    );
+  }
+
   return (
-    <div className={`rounded-3xl border p-5 shadow-sm ${cardClasses}`}>
+    <div className={`min-h-[180px] rounded-3xl border p-5 shadow-sm ${cardClasses}`}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Pulmonary Exam</div>
@@ -508,7 +525,7 @@ function QuizPulmonaryExamCard({ pcwp }) {
   );
 }
 
-function QuizPeripheralExamCard({ cvp }) {
+function QuizPeripheralExamCard({ cvp, revealed = true, onReveal = null }) {
   let status = "Flat JVP";
   let subtext = "No peripheral congestion";
   let detail = "Neck veins are flat and there is no visible leg swelling.";
@@ -547,8 +564,25 @@ function QuizPeripheralExamCard({ cvp }) {
     badgeClasses = "bg-amber-100 text-amber-800 border-amber-200";
   }
 
+  if (!revealed) {
+    return (
+      <button
+        type="button"
+        onClick={onReveal}
+        className="flex min-h-[180px] w-full items-center justify-between rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40"
+      >
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Peripheral Exam</div>
+          <div className="mt-3 text-lg font-black text-slate-950">Examine JVP</div>
+          <div className="mt-2 max-w-xs text-xs leading-5 text-slate-500">Click to reveal the neck-vein exam and peripheral edema pattern.</div>
+        </div>
+        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-700">Reveal</div>
+      </button>
+    );
+  }
+
   return (
-    <div className={`rounded-3xl border p-5 shadow-sm ${cardClasses}`}>
+    <div className={`min-h-[180px] rounded-3xl border p-5 shadow-sm ${cardClasses}`}>
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Peripheral Exam</div>
@@ -572,7 +606,6 @@ function QuizPeripheralExamCard({ cvp }) {
       </div>
     </div>
   );
-
 }
 
 function LvPressureWaveformCard({ model, map, pcwp }) {
@@ -1019,15 +1052,17 @@ export default function LVADFlowLab() {
   const [showPiLines, setShowPiLines] = useState(true);
   const [hidePiValue, setHidePiValue] = useState(false);
   const [showAllRpmCurves, setShowAllRpmCurves] = useState(false);
-  const [advancedPhysiologyMode, setAdvancedPhysiologyMode] = useState(false);
-  const [quizMode, setQuizMode] = useState(false);
-  const [lessonMode, setLessonMode] = useState(false);
-  const [selectedLessonId, setSelectedLessonId] = useState(1);
-  const [showAssumptions, setShowAssumptions] = useState(false);
-  const [selectedCaseId, setSelectedCaseId] = useState("free");
-  const [monitorTick, setMonitorTick] = useState(0);
+const [advancedPhysiologyMode, setAdvancedPhysiologyMode] = useState(false);
+const [quizMode, setQuizMode] = useState(false);
+const [showPulmonaryExam, setShowPulmonaryExam] = useState(false);
+const [showPeripheralExam, setShowPeripheralExam] = useState(false);
+const [lessonMode, setLessonMode] = useState(false);
+const [selectedLessonId, setSelectedLessonId] = useState(1);
+const [showAssumptions, setShowAssumptions] = useState(false);
+const [selectedCaseId, setSelectedCaseId] = useState("free");
+const [monitorTick, setMonitorTick] = useState(0);
 
-  const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contractility, 0.45, 1.25);
+const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contractility, 0.45, 1.25);
 
   const getComplianceProfile = (pcwp = lvPreload, cvp = rvPreload, lvEf = lvContractility, rvFn = rvContractility) => {
     // Compliance is intentionally nonlinear. In the normal/mid Frank-Starling range,
@@ -1153,6 +1188,13 @@ export default function LVADFlowLab() {
     return () => window.clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    if (!quizMode) {
+      setShowPulmonaryExam(false);
+      setShowPeripheralExam(false);
+    }
+  }, [quizMode]);
+
   const model = useToyModel({ rpm, map, lvPreload, rvPreload, lvContractility, aorticInsufficiency, inflowObstruction, preloadLimitEnabled: showPreloadLimit });
   const suctionCyclePosition = monitorTick % 8;
   const suctionRecoveryFraction = model.suctionMotionActive ? clamp(suctionCyclePosition / 4, 0, 1) : 1;
@@ -1185,6 +1227,8 @@ export default function LVADFlowLab() {
     setAorticInsufficiency(settings.aorticInsufficiency);
     setInflowObstruction(settings.inflowObstruction);
     setSelectedCaseId("free");
+    setShowPulmonaryExam(false);
+    setShowPeripheralExam(false);
   };
 
   const applyCasePreset = (caseId) => {
@@ -1200,6 +1244,8 @@ export default function LVADFlowLab() {
     setRvContractility(settings.rvContractility);
     setAorticInsufficiency(0);
     setInflowObstruction(0);
+    setShowPulmonaryExam(false);
+    setShowPeripheralExam(false);
   };
 
   const reset = () => {
@@ -1213,6 +1259,14 @@ export default function LVADFlowLab() {
     setInflowObstruction(0);
     setSelectedCaseId("free");
     setSelectedLessonId(1);
+    setShowPulmonaryExam(false);
+    setShowPeripheralExam(false);
+  };
+
+  const toggleQuizMode = () => {
+    setQuizMode((value) => !value);
+    setShowPulmonaryExam(false);
+    setShowPeripheralExam(false);
   };
 
   return (
@@ -1226,7 +1280,7 @@ export default function LVADFlowLab() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => setAdvancedPhysiologyMode((value) => !value)} variant={advancedPhysiologyMode ? "default" : "outline"} className="rounded-2xl">{advancedPhysiologyMode ? "Advanced physiology on" : "Advanced physiology off"}</Button>
-            <Button onClick={() => setQuizMode((value) => !value)} variant={quizMode ? "default" : "outline"} className="rounded-2xl">{quizMode ? "Quiz mode on" : "Quiz mode off"}</Button>
+            <Button onClick={toggleQuizMode} variant={quizMode ? "default" : "outline"} className="rounded-2xl">{quizMode ? "Quiz mode on" : "Quiz mode off"}</Button>
             <Button onClick={() => setLessonMode((value) => !value)} variant={lessonMode ? "default" : "outline"} className="rounded-2xl">{lessonMode ? "Lesson mode on" : "Lesson mode off"}</Button>
             <Button onClick={() => setShowPreloadLimit((value) => !value)} variant={showPreloadLimit ? "default" : "outline"} className="rounded-2xl">{showPreloadLimit ? "Preload cap on" : "Preload cap off"}</Button>
             <Button onClick={() => setPaused((value) => !value)} variant="outline" className="rounded-2xl">{paused ? "Play oscillation" : "Pause at mean flow"}</Button>
@@ -1290,10 +1344,6 @@ export default function LVADFlowLab() {
             </div>
             {quizMode ? (
               <div className="space-y-3">
-                <div className="grid gap-3 lg:grid-cols-2">
-                  <QuizPulmonaryExamCard pcwp={lvPreload} />
-                  <QuizPeripheralExamCard cvp={rvPreload} />
-                </div>
                 <LvPressureWaveformCard model={model} map={map} pcwp={lvPreload} />
               </div>
             ) : null}
@@ -1399,38 +1449,54 @@ export default function LVADFlowLab() {
                   alertNote={mapAlertNote}
                   helper="Higher MAP raises diastolic head pressure, tends to reduce flow, and modestly raises PCWP/LVEDP."
                 />
-                <SliderControl
-                  compact={advancedPhysiologyMode}
-                  label="PCWP / LVEDP"
-                  value={format(lvPreload, 1)}
-                  setValue={updatePcwp}
-                  min={2}
-                  max={35}
-                  step={1}
-                  unit="mmHg"
-                  iconType="waves"
-                  alertTone={pcwpAlertTone}
-                  alertNote={pcwpAlertNote}
-                  helper="Approximate LV filling pressure / pump inflow pressure during diastole. CVP tracks this unless RV contractility changes."
-                />
-                <SliderControl
-                  compact={advancedPhysiologyMode}
-                  label="CVP"
-                  value={format(rvPreload, 1)}
-                  setValue={() => {}}
-                  min={2}
-                  max={35}
-                  step={1}
-                  unit="mmHg"
-                  iconType="waves"
-                  alertTone={cvpAlertTone}
-                  alertNote={cvpAlertNote}
-                  helper={
-                    advancedPhysiologyMode
-                      ? `${complianceProfile.rvLabel}; CVP changes with RV stiffness and volume transfer.`
-                      : `Tracks PCWP by CVP:PCWP ratio ${format(rvPreload / Math.max(lvPreload, 1), 2)}. Adjust RV contractility to change it.`
-                  }
-                />
+                {quizMode ? (
+                  <QuizPulmonaryExamCard
+                    pcwp={lvPreload}
+                    revealed={showPulmonaryExam}
+                    onReveal={() => setShowPulmonaryExam(true)}
+                  />
+                ) : (
+                  <SliderControl
+                    compact={advancedPhysiologyMode}
+                    label="PCWP / LVEDP"
+                    value={format(lvPreload, 1)}
+                    setValue={updatePcwp}
+                    min={2}
+                    max={35}
+                    step={1}
+                    unit="mmHg"
+                    iconType="waves"
+                    alertTone={pcwpAlertTone}
+                    alertNote={pcwpAlertNote}
+                    helper="Approximate LV filling pressure / pump inflow pressure during diastole. CVP tracks this unless RV contractility changes."
+                  />
+                )}
+                {quizMode ? (
+                  <QuizPeripheralExamCard
+                    cvp={rvPreload}
+                    revealed={showPeripheralExam}
+                    onReveal={() => setShowPeripheralExam(true)}
+                  />
+                ) : (
+                  <SliderControl
+                    compact={advancedPhysiologyMode}
+                    label="CVP"
+                    value={format(rvPreload, 1)}
+                    setValue={() => {}}
+                    min={2}
+                    max={35}
+                    step={1}
+                    unit="mmHg"
+                    iconType="waves"
+                    alertTone={cvpAlertTone}
+                    alertNote={cvpAlertNote}
+                    helper={
+                      advancedPhysiologyMode
+                        ? `${complianceProfile.rvLabel}; CVP changes with RV stiffness and volume transfer.`
+                        : `Tracks PCWP by CVP:PCWP ratio ${format(rvPreload / Math.max(lvPreload, 1), 2)}. Adjust RV contractility to change it.`
+                    }
+                  />
+                )}
                 <SliderControl compact={advancedPhysiologyMode} label="LV contractility / EF" value={lvContractility} setValue={updateLvContractility} min={0} max={50} step={1} unit="%" iconType="heart" helper={advancedPhysiologyMode ? `AV-opening threshold still applies; lower EF is treated as ${complianceProfile.lvLabel}.` : "AV-opening EF threshold shifts with MAP, RPM unloading, and PCWP/LVEDP preload recruitment."} />
                 <SliderControl compact={advancedPhysiologyMode} label="RV contractility" value={rvContractility} setValue={updateRvContractility} min={0} max={50} step={1} unit="%" iconType="heart" helper={advancedPhysiologyMode ? `Lower RV function increases right-sided stiffness and blunts forward transfer to PCWP.` : "0% = poor RV contractility; 50% = maximum RV contractility. Higher RV contractility lowers CVP:PCWP."} />
                 {advancedPhysiologyMode ? <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-3"><div className="mb-2 text-xs font-bold uppercase tracking-wide text-indigo-700">Advanced volume/compliance</div><div className="grid grid-cols-2 gap-2"><Button onClick={volumeChallenge} variant="outline" className="rounded-xl bg-white text-xs">Give fluid</Button><Button onClick={diurese} variant="outline" className="rounded-xl bg-white text-xs">Diurese</Button></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-white p-2"><div className="font-bold text-slate-700">LV</div><div className="text-slate-500">{complianceProfile.lvLabel}</div><div className="mt-1 font-mono text-slate-700">stiffness {format(complianceProfile.lvStiffness, 2)}</div></div><div className="rounded-xl bg-white p-2"><div className="font-bold text-slate-700">RV</div><div className="text-slate-500">{complianceProfile.rvLabel}</div><div className="mt-1 font-mono text-slate-700">stiffness {format(complianceProfile.rvStiffness, 2)}</div></div></div><p className="mt-2 text-xs leading-5 text-indigo-800">Fluid now changes PCWP and CVP with different slopes. Poor RV function raises CVP more and transfers less volume to left-sided filling.</p></div> : null}
