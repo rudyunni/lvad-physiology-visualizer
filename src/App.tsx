@@ -196,7 +196,7 @@ const CASE_PRESETS = [
   {
     id: "hypertension",
     label: "Case 1: Hypertension / afterload",
-    question: "A gentleman comes in with low-flow alarms and change in his PI. His usual flow is 5.3L/min and PI is 5."
+    question: "A gentleman comes in with low-flow alarms and change in his PI. His usual flow is 5.3L/min and PI is 5.",
     settings: { rpm: 5100, map: 100, lvPreload: 15.5, rvPreload: 8.7, lvContractility: 22, rvContractility: 30 },
   },
   {
