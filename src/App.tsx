@@ -1016,7 +1016,7 @@ function useToyModel(inputs) {
   return useMemo(() => computeToyModel(inputs), [inputs.rpm, inputs.map, inputs.lvPreload, inputs.rvPreload, inputs.lvContractility, inputs.aorticInsufficiency, inputs.inflowObstruction, inputs.preloadLimitEnabled]);
 }
 
-function HQGraph({ model, paused, showPreloadLimit, flipAxes, setFlipAxes, showHeadLines, setShowHeadLines, showPiLines, setShowPiLines, showAllRpmCurves }) {
+function HQGraph({ model, paused, showPreloadLimit, flipAxes, setFlipAxes, showHeadLines, setShowHeadLines, showPiLines, setShowPiLines, showAllRpmCurves, onHideHQGraph = null }) {
   const width = 720;
   const height = 640;
   const margin = { top: 36, right: 34, bottom: 62, left: 76 };
@@ -1069,10 +1069,13 @@ function HQGraph({ model, paused, showPreloadLimit, flipAxes, setFlipAxes, showH
     <div className="w-full overflow-hidden rounded-3xl border bg-white p-4 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-3">
         <div><div className="text-lg font-bold text-slate-950">Active HQ Curve</div><div className="text-sm text-slate-500">{flipAxes ? "Flipped axes: x = head pressure, y = flow." : "Standard axes: x = flow, y = head pressure."}</div></div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Button onClick={() => setShowPiLines((value) => !value)} variant={showPiLines ? "default" : "outline"} className="rounded-2xl px-3 py-2 text-xs">{showPiLines ? "PI lines on" : "PI lines off"}</Button>
           <Button onClick={() => setShowHeadLines((value) => !value)} variant={showHeadLines ? "default" : "outline"} className="rounded-2xl px-3 py-2 text-xs">{showHeadLines ? "H lines on" : "H lines off"}</Button>
           <Button onClick={() => setFlipAxes((value) => !value)} variant="outline" className="rounded-2xl px-3 py-2 text-xs">{flipAxes ? "Standard axes" : "Flip axes"}</Button>
+          {onHideHQGraph ? (
+            <Button onClick={onHideHQGraph} variant="outline" className="rounded-2xl px-3 py-2 text-xs">Hide HQ graph</Button>
+          ) : null}
         </div>
       </div>
       <svg viewBox={`0 0 ${width} ${height}`} className="h-[640px] w-full">
@@ -1335,7 +1338,12 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
   };
 
   const toggleQuizMode = () => {
-    setQuizMode((value) => !value);
+    setQuizMode((value) => {
+      const nextQuizMode = !value;
+      setShowHQGraph(!nextQuizMode);
+      return nextQuizMode;
+    });
+    setShowMapExam(false);
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
   };
@@ -1407,13 +1415,49 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.45fr_0.85fr]">
           <div className="space-y-5">
-            <HQGraph model={model} paused={paused} showPreloadLimit={showPreloadLimit} flipAxes={flipAxes} setFlipAxes={setFlipAxes} showHeadLines={showHeadLines} setShowHeadLines={setShowHeadLines} showPiLines={showPiLines} setShowPiLines={setShowPiLines} showAllRpmCurves={showAllRpmCurves} />
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <ControllerStatCard title="Flow" value={format(displayedFlow, 2)} unit="L/min" sub={model.suctionMotionActive ? "suction drop" : `Qd ${format(model.qDiastole, 2)} • Qs ${format(model.qSystole, 2)} L/min`} />
-              <ControllerStatCard title="Power" value={format(displayedPower, 1)} unit="W" sub={model.suctionMotionActive ? "suction drop" : ""} />
-              <RpmCard rpm={rpm} onDecrease={decreaseRpm} onIncrease={increaseRpm} showAllCurves={showAllRpmCurves} onToggleShowAllCurves={() => setShowAllRpmCurves((value) => !value)} />
-              <ControllerStatCard title="PI" value={format(displayedPi, 1)} unit="" sub={model.suctionMotionActive ? "PI event" : "((Qmax - Qmin) / Qmean) x 10"} hidden={hidePiValue} onToggleHidden={() => setHidePiValue((value) => !value)} />
-            </div>
+            {quizMode ? (
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <ControllerStatCard title="Flow" value={format(displayedFlow, 2)} unit="L/min" sub={model.suctionMotionActive ? "suction drop" : `Qd ${format(model.qDiastole, 2)} • Qs ${format(model.qSystole, 2)} L/min`} />
+                <ControllerStatCard title="Power" value={format(displayedPower, 1)} unit="W" sub={model.suctionMotionActive ? "suction drop" : ""} />
+                <RpmCard rpm={rpm} onDecrease={decreaseRpm} onIncrease={increaseRpm} showAllCurves={showAllRpmCurves} onToggleShowAllCurves={() => setShowAllRpmCurves((value) => !value)} />
+                <ControllerStatCard title="PI" value={format(displayedPi, 1)} unit="" sub={model.suctionMotionActive ? "PI event" : "((Qmax - Qmin) / Qmean) x 10"} hidden={hidePiValue} onToggleHidden={() => setHidePiValue((value) => !value)} />
+              </div>
+            ) : null}
+
+            {showHQGraph ? (
+              <HQGraph
+                model={model}
+                paused={paused}
+                showPreloadLimit={showPreloadLimit}
+                flipAxes={flipAxes}
+                setFlipAxes={setFlipAxes}
+                showHeadLines={showHeadLines}
+                setShowHeadLines={setShowHeadLines}
+                showPiLines={showPiLines}
+                setShowPiLines={setShowPiLines}
+                showAllRpmCurves={showAllRpmCurves}
+                onHideHQGraph={() => setShowHQGraph(false)}
+              />
+            ) : (
+              <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-lg font-bold text-slate-950">HQ graph hidden</div>
+                    <div className="text-sm text-slate-500">The active HQ curve is hidden for quiz mode. Reveal it when the learner is ready to interpret the pump mechanics.</div>
+                  </div>
+                  <Button onClick={() => setShowHQGraph(true)} variant="outline" className="rounded-2xl">Show HQ graph</Button>
+                </div>
+              </div>
+            )}
+
+            {!quizMode ? (
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                <ControllerStatCard title="Flow" value={format(displayedFlow, 2)} unit="L/min" sub={model.suctionMotionActive ? "suction drop" : `Qd ${format(model.qDiastole, 2)} • Qs ${format(model.qSystole, 2)} L/min`} />
+                <ControllerStatCard title="Power" value={format(displayedPower, 1)} unit="W" sub={model.suctionMotionActive ? "suction drop" : ""} />
+                <RpmCard rpm={rpm} onDecrease={decreaseRpm} onIncrease={increaseRpm} showAllCurves={showAllRpmCurves} onToggleShowAllCurves={() => setShowAllRpmCurves((value) => !value)} />
+                <ControllerStatCard title="PI" value={format(displayedPi, 1)} unit="" sub={model.suctionMotionActive ? "PI event" : "((Qmax - Qmin) / Qmean) x 10"} hidden={hidePiValue} onToggleHidden={() => setHidePiValue((value) => !value)} />
+              </div>
+            ) : null}
             {quizMode ? (
               <div className="space-y-3">
                 <LvPressureWaveformCard model={model} map={map} pcwp={lvPreload} />
