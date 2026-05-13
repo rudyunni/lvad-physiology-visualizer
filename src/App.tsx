@@ -561,7 +561,7 @@ function LvPressureWaveformCard({ model, map, pcwp }) {
 
     // Valve-event timing for the toy Wiggers diagram.
     // AV opening begins once LV pressure should exceed aortic end-diastolic pressure.
-    // AV closure occurs near the end of LV systole, followed by a dicrotic notch and slow diastolic runoff.
+    // AV closure occurs near the end of LV systole, followed by smooth diastolic runoff.
     const avOpenStart = 0.22;
     const avClose = 0.48;
     const nextAvOpenStart = 1.22;
@@ -585,14 +585,12 @@ function LvPressureWaveformCard({ model, map, pcwp }) {
       return clamp(Math.min(lvPressure, physiologicSystolicCap), 0, yMax);
     }
 
-    // After AV closure: dicrotic notch, then Windkessel-like exponential diastolic decay.
+    // After AV closure: smooth Windkessel-like exponential diastolic decay.
     if (phase > avClose) {
       const diastolicProgress = clamp((phase - avClose) / (nextAvOpenStart - avClose), 0, 1);
       const pressureAtClosure = clamp(lvPressureAt(avClose), aorticDiastolicPressure, aorticSystolicPressure);
       const runoff = aorticDiastolicPressure + (pressureAtClosure - aorticDiastolicPressure) * Math.exp(-2.15 * diastolicProgress);
-      const notch = -4.0 * Math.exp(-Math.pow((phase - (avClose + 0.035)) / 0.018, 2));
-      const rebound = 1.6 * Math.exp(-Math.pow((phase - (avClose + 0.075)) / 0.050, 2));
-      return clamp(runoff + notch + rebound, 0, yMax);
+      return clamp(runoff, 0, yMax);
     }
 
     // Late diastole before valve opening: continue the tail end of the previous beat's runoff.
