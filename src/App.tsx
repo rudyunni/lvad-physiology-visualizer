@@ -1423,6 +1423,24 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     <div className="text-xs font-black uppercase tracking-wide text-slate-500">Quiz details</div>
                   </div>
                   <h2 className="text-2xl font-black tracking-tight text-slate-950">Work through the LVAD physiology before revealing the answer</h2>
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                {CASE_PRESETS.map((casePreset, index) => (
+                  <button
+                    key={casePreset.id}
+                    type="button"
+                    onClick={() => applyCasePreset(casePreset.id)}
+                    className={`flex h-10 min-w-10 items-center justify-center rounded-2xl border px-3 text-sm font-black transition ${
+                      selectedCaseId === casePreset.id
+                        ? "border-slate-950 bg-slate-950 text-white shadow-sm"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-indigo-200 hover:bg-indigo-50"
+                    }`}
+                    aria-label={`Load quiz case ${index + 1}: ${casePreset.label}`}
+                    title={casePreset.label}
+                  >
+                    {index + 1}
+                  </button>
+                ))}
+              </div>
                   {activeCase ? (
                     <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                       <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Case prompt</div>
@@ -1441,7 +1459,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                 <div className="grid min-w-[280px] gap-2 text-xs text-slate-700 sm:grid-cols-2 lg:grid-cols-1">
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                     <div className="font-bold text-slate-900">1. Start with LVAD parameters</div>
-                    <div className="mt-1 leading-5">Look at flow, power, PI, and RPM first. Decide whether the pattern suggests afterload, preload limitation, RV failure, suction, recovery, or obstruction.</div>
+                    <div className="mt-1 leading-5">Read the case prompt first. Look at flow, power, PI, and RPM first. Decide what states could be on the differential (e.g., afterload, preload limitation, RV failure, suction, recovery, or obstruction).</div>
                   </div>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                     <div className="font-bold text-slate-900">2. Build a differential</div>
