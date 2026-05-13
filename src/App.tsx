@@ -1120,6 +1120,7 @@ export default function LVADFlowLab() {
   const [showPiLines, setShowPiLines] = useState(true);
   const [hidePiValue, setHidePiValue] = useState(false);
   const [showAllRpmCurves, setShowAllRpmCurves] = useState(false);
+  const [showHQGraph, setShowHQGraph] = useState(true);
 const [advancedPhysiologyMode, setAdvancedPhysiologyMode] = useState(false);
 const [quizMode, setQuizMode] = useState(false);
 const [showMapExam, setShowMapExam] = useState(false);
@@ -1353,6 +1354,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
             <Button onClick={toggleQuizMode} variant={quizMode ? "default" : "outline"} className="rounded-2xl">{quizMode ? "Quiz mode on" : "Quiz mode off"}</Button>
             <Button onClick={() => setLessonMode((value) => !value)} variant={lessonMode ? "default" : "outline"} className="rounded-2xl">{lessonMode ? "Lesson mode on" : "Lesson mode off"}</Button>
             <Button onClick={() => setShowPreloadLimit((value) => !value)} variant={showPreloadLimit ? "default" : "outline"} className="rounded-2xl">{showPreloadLimit ? "Preload cap on" : "Preload cap off"}</Button>
+            <Button onClick={() => setShowHQGraph((value) => !value)} variant={showHQGraph ? "outline" : "default"} className="rounded-2xl">{showHQGraph ? "Hide HQ graph" : "Show HQ graph"}</Button>
             <Button onClick={() => setPaused((value) => !value)} variant="outline" className="rounded-2xl">{paused ? "Play oscillation" : "Pause at mean flow"}</Button>
             <Button onClick={reset} variant="outline" className="rounded-2xl"><MiniIcon type="reset" className="mr-2 h-4 w-4" />Reset</Button>
             <select value={selectedCaseId} onChange={(event) => applyCasePreset(event.target.value)} className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm">
