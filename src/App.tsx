@@ -958,6 +958,7 @@ export default function LVADFlowLab() {
   const [showAllRpmCurves, setShowAllRpmCurves] = useState(false);
   const [advancedPhysiologyMode, setAdvancedPhysiologyMode] = useState(false);
   const [quizMode, setQuizMode] = useState(false);
+  const [lessonMode, setLessonMode] = useState(false);
   const [showAssumptions, setShowAssumptions] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState("free");
   const [monitorTick, setMonitorTick] = useState(0);
@@ -1144,6 +1145,7 @@ export default function LVADFlowLab() {
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => setAdvancedPhysiologyMode((value) => !value)} variant={advancedPhysiologyMode ? "default" : "outline"} className="rounded-2xl">{advancedPhysiologyMode ? "Advanced physiology on" : "Advanced physiology off"}</Button>
             <Button onClick={() => setQuizMode((value) => !value)} variant={quizMode ? "default" : "outline"} className="rounded-2xl">{quizMode ? "Quiz mode on" : "Quiz mode off"}</Button>
+            <Button onClick={() => setLessonMode((value) => !value)} variant={lessonMode ? "default" : "outline"} className="rounded-2xl">{lessonMode ? "Lesson mode on" : "Lesson mode off"}</Button>
             <Button onClick={() => setShowPreloadLimit((value) => !value)} variant={showPreloadLimit ? "default" : "outline"} className="rounded-2xl">{showPreloadLimit ? "Preload cap on" : "Preload cap off"}</Button>
             <Button onClick={() => setPaused((value) => !value)} variant="outline" className="rounded-2xl">{paused ? "Play oscillation" : "Pause at mean flow"}</Button>
             <Button onClick={reset} variant="outline" className="rounded-2xl"><MiniIcon type="reset" className="mr-2 h-4 w-4" />Reset</Button>
@@ -1153,6 +1155,35 @@ export default function LVADFlowLab() {
             </select>
           </div>
         </header>
+        {lessonMode ? (
+          <Card className="rounded-3xl border border-indigo-200 bg-indigo-50/80 shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="max-w-4xl">
+                  <div className="text-xs font-black uppercase tracking-wide text-indigo-700">Lesson mode</div>
+                  <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">How LVAD speed shifts the HQ curve</h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    Increasing RPM shifts the pump HQ curve upward and to the right. At the same pressure head, the pump can generate more flow. Decreasing RPM shifts the curve downward and to the left, reducing the available flow for a given head pressure.
+                  </p>
+                </div>
+                <div className="grid min-w-[260px] gap-2 text-xs text-slate-700 sm:grid-cols-3 lg:grid-cols-1">
+                  <div className="rounded-2xl border border-indigo-100 bg-white/80 p-3 shadow-sm">
+                    <div className="font-bold text-slate-900">1. Change RPM</div>
+                    <div className="mt-1 leading-5">Use the RPM arrows below the graph and watch the active curve move.</div>
+                  </div>
+                  <div className="rounded-2xl border border-indigo-100 bg-white/80 p-3 shadow-sm">
+                    <div className="font-bold text-slate-900">2. Keep MAP fixed</div>
+                    <div className="mt-1 leading-5">Then adjust MAP to see how afterload moves the operating point along the curve.</div>
+                  </div>
+                  <div className="rounded-2xl border border-indigo-100 bg-white/80 p-3 shadow-sm">
+                    <div className="font-bold text-slate-900">3. Ask why flow changes</div>
+                    <div className="mt-1 leading-5">Separate pump capability from patient-side preload supply.</div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.45fr_0.85fr]">
           <div className="space-y-5">
