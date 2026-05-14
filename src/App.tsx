@@ -198,7 +198,7 @@ const CASE_PRESETS = [
   {
     id: "hypertension",
     label: "Case 1: Hypertension / afterload",
-    question: "A gentleman comes in with low-flow alarms and change in his PI. His usual flow is 5.3 L/min and PI is 5.",
+    question: "A 60-year-old man with a HeartMate 3, presents with low-flow alarms and change in his PI. His usual flow is 5.3 L/min and PI is 5.",
     settings: { rpm: 5100, map: 100, lvPreload: 15.5, rvPreload: 8.7, lvContractility: 22, rvContractility: 30 },
     secondaryQuestions: [
       {
@@ -1365,6 +1365,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
       setShowMapExam(false);
       setShowPulmonaryExam(false);
       setShowPeripheralExam(false);
+      setShowEchoResults(false);
     }
   }, [quizMode]);
 
@@ -1402,6 +1403,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setSelectedCaseId("free");
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
+    setShowEchoResults(false);
   };
 
   const applyCasePreset = (caseId) => {
@@ -1419,6 +1421,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setInflowObstruction(0);
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
+    setShowEchoResults(false);
   };
 
   const reset = () => {
@@ -1434,6 +1437,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setSelectedLessonId(1);
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
+    setShowEchoResults(false);
   };
 
   const toggleQuizMode = () => {
@@ -1445,6 +1449,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setShowMapExam(false);
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
+    setShowEchoResults(false);
   };
 
   return (
@@ -1798,11 +1803,50 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     }
                   />
                 )}
-                <SliderControl compact={advancedPhysiologyMode} label="LV contractility / EF" value={lvContractility} setValue={updateLvContractility} min={0} max={50} step={1} unit="%" iconType="heart" helper={advancedPhysiologyMode ? `AV-opening threshold still applies; lower EF is treated as ${complianceProfile.lvLabel}.` : "AV-opening EF threshold shifts with MAP, RPM unloading, and PCWP/LVEDP preload recruitment."} />
-                <SliderControl compact={advancedPhysiologyMode} label="RV contractility" value={rvContractility} setValue={updateRvContractility} min={0} max={50} step={1} unit="%" iconType="heart" helper={advancedPhysiologyMode ? `Lower RV function increases right-sided stiffness and blunts forward transfer to PCWP.` : "0% = poor RV contractility; 50% = maximum RV contractility. Higher RV contractility lowers CVP:PCWP."} />
-                {advancedPhysiologyMode ? <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-3"><div className="mb-2 text-xs font-bold uppercase tracking-wide text-indigo-700">Advanced volume/compliance</div><div className="grid grid-cols-2 gap-2"><Button onClick={volumeChallenge} variant="outline" className="rounded-xl bg-white text-xs">Give fluid</Button><Button onClick={diurese} variant="outline" className="rounded-xl bg-white text-xs">Diurese</Button></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-white p-2"><div className="font-bold text-slate-700">LV</div><div className="text-slate-500">{complianceProfile.lvLabel}</div><div className="mt-1 font-mono text-slate-700">stiffness {format(complianceProfile.lvStiffness, 2)}</div></div><div className="rounded-xl bg-white p-2"><div className="font-bold text-slate-700">RV</div><div className="text-slate-500">{complianceProfile.rvLabel}</div><div className="mt-1 font-mono text-slate-700">stiffness {format(complianceProfile.rvStiffness, 2)}</div></div></div><p className="mt-2 text-xs leading-5 text-indigo-800">Fluid now changes PCWP and CVP with different slopes. Poor RV function raises CVP more and transfers less volume to left-sided filling.</p></div> : null}
-                <div className="rounded-2xl border bg-white p-3"><div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Frank-Starling curves</div><div className="grid grid-cols-2 gap-3"><div><div className="mb-1 text-xs font-semibold text-slate-500">LV</div><MiniFrankStarlingCurve preload={lvPreload} contractility={lvContractility} kind="LV" /><div className="mt-1 text-xs text-slate-500">PCWP/LVEDP</div></div><div><div className="mb-1 text-xs font-semibold text-slate-500">RV</div><MiniFrankStarlingCurve preload={rvPreload} contractility={rvContractility} kind="RV" /><div className="mt-1 text-xs text-slate-500">CVP</div></div></div></div>
-                <AvOpenMiniCard avOpeningFraction={model.avOpeningFraction} hMin={Math.min(model.hLow, model.hHigh)} />
+
+{quizMode ? (
+
+  <QuizEchoResultsCard
+
+    lvContractility={lvContractility}
+
+    rvContractility={rvContractility}
+
+    avOpeningFraction={model.avOpeningFraction}
+
+    hMin={Math.min(model.hLow, model.hHigh)}
+
+    revealed={showEchoResults}
+
+    onReveal={() => setShowEchoResults((value) => !value)}
+
+  />
+
+) : (
+
+  <>
+
+    <SliderControl compact={advancedPhysiologyMode} label="LV contractility / EF" value={lvContractility} setValue={updateLvContractility} min={0} max={50} step={1} unit="%" iconType="heart" helper={advancedPhysiologyMode ? `AV-opening threshold still applies; lower EF is treated as ${complianceProfile.lvLabel}.` : "AV-opening EF threshold shifts with MAP, RPM unloading, and PCWP/LVEDP preload recruitment."} />
+
+    <SliderControl compact={advancedPhysiologyMode} label="RV contractility" value={rvContractility} setValue={updateRvContractility} min={0} max={50} step={1} unit="%" iconType="heart" helper={advancedPhysiologyMode ? `Lower RV function increases right-sided stiffness and blunts forward transfer to PCWP.` : "0% = poor RV contractility; 50% = maximum RV contractility. Higher RV contractility lowers CVP:PCWP."} />
+
+  </>
+
+)}
+
+{advancedPhysiologyMode ? <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-3"><div className="mb-2 text-xs font-bold uppercase tracking-wide text-indigo-700">Advanced volume/compliance</div><div className="grid grid-cols-2 gap-2"><Button onClick={volumeChallenge} variant="outline" className="rounded-xl bg-white text-xs">Give fluid</Button><Button onClick={diurese} variant="outline" className="rounded-xl bg-white text-xs">Diurese</Button></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-white p-2"><div className="font-bold text-slate-700">LV</div><div className="text-slate-500">{complianceProfile.lvLabel}</div><div className="mt-1 font-mono text-slate-700">stiffness {format(complianceProfile.lvStiffness, 2)}</div></div><div className="rounded-xl bg-white p-2"><div className="font-bold text-slate-700">RV</div><div className="text-slate-500">{complianceProfile.rvLabel}</div><div className="mt-1 font-mono text-slate-700">stiffness {format(complianceProfile.rvStiffness, 2)}</div></div></div><p className="mt-2 text-xs leading-5 text-indigo-800">Fluid now changes PCWP and CVP with different slopes. Poor RV function raises CVP more and transfers less volume to left-sided filling.</p></div> : null}
+
+{!quizMode ? (
+
+  <>
+
+    <div className="rounded-2xl border bg-white p-3"><div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Frank-Starling curves</div><div className="grid grid-cols-2 gap-3"><div><div className="mb-1 text-xs font-semibold text-slate-500">LV</div><MiniFrankStarlingCurve preload={lvPreload} contractility={lvContractility} kind="LV" /><div className="mt-1 text-xs text-slate-500">PCWP/LVEDP</div></div><div><div className="mb-1 text-xs font-semibold text-slate-500">RV</div><MiniFrankStarlingCurve preload={rvPreload} contractility={rvContractility} kind="RV" /><div className="mt-1 text-xs text-slate-500">CVP</div></div></div></div>
+
+    <AvOpenMiniCard avOpeningFraction={model.avOpeningFraction} hMin={Math.min(model.hLow, model.hHigh)} />
+
+  </>
+
+) : null}
               </div>
             </div>
           </aside>
