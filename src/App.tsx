@@ -484,6 +484,72 @@ function AvOpenMiniCard({ avOpeningFraction, hMin }) {
   );
 }
 
+function QuizEchoResultsCard({ lvContractility, rvContractility, avOpeningFraction, hMin, revealed = false, onReveal = null }) {
+  const effectiveAvOpeningFraction = hMin <= 1 ? Math.max(avOpeningFraction, 0.15) : avOpeningFraction;
+  let display = "Closed";
+  let sub = "No AV opening";
+  if (effectiveAvOpeningFraction >= 0.85) { display = "1/1"; sub = "Opens every beat"; }
+  else if (effectiveAvOpeningFraction >= 0.55) { display = "1/2"; sub = "Opens every 2 beats"; }
+  else if (effectiveAvOpeningFraction >= 0.35) { display = "1/3"; sub = "Opens every 3 beats"; }
+  else if (effectiveAvOpeningFraction >= 0.15) { display = "1/4"; sub = "Opens every 4 beats"; }
+
+  if (!revealed) {
+    return (
+      <button
+        type="button"
+        onClick={onReveal}
+        className="flex min-h-[96px] w-full items-center justify-between rounded-2xl border bg-white/70 p-4 text-left shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40"
+      >
+        <div className="flex items-start gap-2">
+          <MiniIcon type="heart" className="mt-0.5 h-4 w-4 shrink-0 text-slate-600" />
+          <div>
+            <div className="text-sm font-semibold text-slate-900">Show recent Echo results</div>
+            <div className="mt-0.5 text-xs leading-snug text-slate-500">Reveal LV EF, RV EF, and aortic valve opening.</div>
+          </div>
+        </div>
+        <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-2 py-1 text-xs font-black text-indigo-700">Reveal</div>
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border bg-white/70 p-4 shadow-sm">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2">
+          <MiniIcon type="heart" className="mt-0.5 h-4 w-4 shrink-0 text-slate-600" />
+          <div>
+            <div className="text-sm font-semibold text-slate-900">Recent Echo results</div>
+            <div className="mt-0.5 text-xs leading-snug text-slate-500">Imaging clues revealed for quiz mode.</div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onReveal}
+          className="rounded-lg border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-500 hover:bg-slate-50"
+        >
+          hide
+        </button>
+      </div>
+
+      <div className="grid gap-2 text-xs md:grid-cols-3">
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <div className="font-bold uppercase tracking-wide text-slate-400">LV EF</div>
+          <div className="mt-1 font-mono text-lg font-black text-slate-950">{format(lvContractility, 0)}%</div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <div className="font-bold uppercase tracking-wide text-slate-400">RV EF</div>
+          <div className="mt-1 font-mono text-lg font-black text-slate-950">{format(rvContractility, 0)}%</div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white p-2">
+          <div className="font-bold uppercase tracking-wide text-slate-400">AV opening</div>
+          <div className="mt-1 font-mono text-lg font-black text-slate-950">{display}</div>
+          <div className="text-[11px] font-semibold text-slate-500">{sub}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 function QuizMapCard({ map, revealed = true, onReveal = null }) {
   let status = "Normal MAP";
@@ -1161,6 +1227,7 @@ const [quizMode, setQuizMode] = useState(false);
 const [showMapExam, setShowMapExam] = useState(false);
 const [showPulmonaryExam, setShowPulmonaryExam] = useState(false);
 const [showPeripheralExam, setShowPeripheralExam] = useState(false);
+const [showEchoResults, setShowEchoResults] = useState(false);
 const [lessonMode, setLessonMode] = useState(false);
 const [selectedLessonId, setSelectedLessonId] = useState(1);
 const [showAssumptions, setShowAssumptions] = useState(false);
@@ -1563,6 +1630,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
               rvContractility={rvContractility}
               cvpPcwpRatio={model.cvpPcwpRatio}
               avOpeningFraction={model.avOpeningFraction}
+              hMin={model.hLow}
             />
 
             {false ? (

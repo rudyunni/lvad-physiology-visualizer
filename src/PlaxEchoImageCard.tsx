@@ -587,12 +587,9 @@ function PlaxUltrasoundBackground({ contractility, rvContractility, cvpPcwpRatio
     <div className="rounded-2xl border border-slate-800 bg-black p-3 shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-3">
         <div>
-          <div className="text-sm font-bold text-white">Parasternal Long-Axis Echo Canvas</div>
-          <div className="text-xs text-slate-400">Wall thickening + CVP:PCWP septal motion.</div>
+          <div className="text-sm font-bold text-white">Bedside POCUS</div>
+          <div className="text-xs text-slate-400">Look at the ventricular function, aortic valve, and septal motion.</div>
         </div>
-        <Badge variant="secondary" className="rounded-lg border-slate-700 bg-slate-900 px-2 py-0.5 text-[10px] text-slate-200">
-          PLAX module draft
-        </Badge>
       </div>
 
       <svg viewBox={`0 0 ${width} ${height}`} className="h-auto w-full overflow-hidden rounded-2xl bg-black">
@@ -883,9 +880,6 @@ function PlaxUltrasoundBackground({ contractility, rvContractility, cvpPcwpRatio
 
         <text x="18" y="28" className="fill-slate-500 text-[10px] font-bold tracking-wide">
           PLAX
-        </text>
-        <text x="18" y="42" className="fill-slate-600 text-[9px] font-semibold">
-          vector anatomy draft
         </text>
         <text x="18" y="56" className="fill-slate-400 text-[9px] font-bold">
           AV {avPattern.display}: {avPattern.sub}
