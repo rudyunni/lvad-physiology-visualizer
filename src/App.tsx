@@ -1530,7 +1530,8 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                <LvPressureWaveformCard model={model} map={map} pcwp={lvPreload} />
                 </div>
               ) : null}
-            <Card className="rounded-3xl shadow-sm"><CardContent className="p-5">
+            {!quizMode ? (
+  <Card className="rounded-3xl shadow-sm"><CardContent className="p-5">
               <div className="mb-3 flex items-center gap-2"><MiniIcon type="info" className="h-5 w-5 text-slate-600" /><div className="text-lg font-bold">Teaching interpretation</div></div>
               <div className="flex flex-wrap items-center gap-2"><Badge className="rounded-xl px-3 py-1 text-sm">{model.status}</Badge></div>
               {activeCase ? <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3"><div className="text-xs font-bold uppercase tracking-wide text-slate-500">Case question</div><p className="mt-1 text-sm font-semibold leading-6 text-slate-800">{activeCase.question}</p><p className="mt-2 text-xs leading-5 text-slate-500">Case settings loaded: RPM {rpm}, MAP {format(map, 0)} mmHg, PCWP/LVEDP {format(lvPreload, 1)} mmHg, CVP {format(rvPreload, 1)} mmHg, LV EF {format(lvContractility, 0)}%, RV contractility {format(rvContractility, 0)}%.</p></div> : <p className="mt-3 text-sm leading-6 text-slate-600">{showPreloadLimit ? model.explanation : "Preload limiting is currently turned off. The graph is showing the theoretical HQ-curve behavior from pressure-derived head alone, without patient-side flow supply constraints."}</p>}
@@ -1612,7 +1613,8 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                   </div>
                 ) : null}
               </div>
-            </CardContent></Card>
+             </CardContent></Card>
+              ) : null}
           </div>
           <aside className="space-y-5">
             <div className="rounded-3xl border bg-white/80 p-3 shadow-sm">
