@@ -196,8 +196,38 @@ const CASE_PRESETS = [
   {
     id: "hypertension",
     label: "Case 1: Hypertension / afterload",
-    question: "A gentleman comes in with low-flow alarms and change in his PI. His usual flow is 5.3L/min and PI is 5.",
+    question: "A gentleman comes in with low-flow alarms and change in his PI. His usual flow is 5.3 L/min and PI is 5.",
     settings: { rpm: 5100, map: 100, lvPreload: 15.5, rvPreload: 8.7, lvContractility: 22, rvContractility: 30 },
+    secondaryQuestions: [
+      {
+        question: "How does the effect of MAP on flow change when the LVAD speed is increased to 5600 RPM?",
+        hint: "Watch how the operating point shifts along the higher HQ curve. Does the same increase in afterload now cause a larger or smaller reduction in flow?",
+      },
+      {
+        question: "How does the effect of MAP on flow change when the patient becomes relatively underfilled? Set PCWP/LVEDP to 9 mmHg.",
+        hint: "Observe what happens to diastolic head pressure and Qmin. Does hypertension become more dangerous when preload reserve is low?",
+      },
+      {
+        question: "What happens to pulsatility index (PI) as MAP rises during hypertension? Why?",
+        hint: "Compare how much the dot moves during the cardiac cycle at low versus high MAP.",
+      },
+      {
+        question: "At what MAP does the aortic valve stop opening in this patient? Now increase speed and check. Now decrease LV contractility and check.",
+        hint: "Follow the AV-opening indicator while increasing afterload.",
+      },
+      {
+        question: "Why can two patients with the same MAP have very different LVAD flows?",
+        hint: "Compare the effects of changing LV contractility and PCWP while keeping MAP fixed.",
+      },
+      {
+        question: "How does hypertension affect the systolic versus diastolic portions of the HQ-cycle differently?",
+        hint: "Look carefully at Qmax versus Qmin during rising afterload.",
+      },
+      {
+        question: "When someone has hypertension, low contractility, and low LVAD speed, what part of the HQ curve are they on: flat or steep?",
+        hint: "Think about shut-off pressure and where the operating point sits relative to the flat portion of the HQ curve.",
+      },
+    ],
   },
   {
     id: "hypovolemia",
