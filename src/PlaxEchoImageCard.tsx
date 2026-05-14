@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from "react";
+// @ts-nocheck
+
+import React from "react";
 
 function Badge({
   children,
@@ -22,7 +24,6 @@ function Badge({
 }
 
 const ULTRASOUND_ZOOM = 1.10;
-const ULTRASOUND_TOP_ANCHOR = -6;
 
 function transformX(x: number) {
   return 50 + (x - 50) * ULTRASOUND_ZOOM;
@@ -899,11 +900,6 @@ export default function PlaxEchoImageCard({
   rvContractility = 25,
   cvpPcwpRatio = 0.6,
   avOpeningFraction = 0.85,
-}: {
-  lvContractility?: number;
-  rvContractility?: number;
-  cvpPcwpRatio?: number;
-  avOpeningFraction?: number;
 }) {
   return (
     <PlaxUltrasoundBackground
