@@ -900,13 +900,16 @@ export default function PlaxEchoImageCard({
   rvContractility = 25,
   cvpPcwpRatio = 0.6,
   avOpeningFraction = 0.85,
+  hMin = 999,
 }) {
+  const effectiveAvOpeningFraction = hMin <= 1 ? Math.max(avOpeningFraction, 0.15) : avOpeningFraction;
+
   return (
     <PlaxUltrasoundBackground
       contractility={lvContractility}
       rvContractility={rvContractility}
       cvpPcwpRatio={cvpPcwpRatio}
-      avOpeningFraction={avOpeningFraction}
+      avOpeningFraction={effectiveAvOpeningFraction}
     />
   );
 }
