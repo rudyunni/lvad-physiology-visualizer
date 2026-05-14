@@ -1,5 +1,6 @@
 // @ts-nocheck
 import React, { useEffect, useMemo, useState } from "react";
+import PlaxEchoImageCard from "./PlaxEchoImageCard";
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <div className={className}>{children}</div>;
 }
@@ -83,32 +84,6 @@ function Slider({
 }
 
 
-function PlaxEchoImageCard({ lvContractility = 25,
-
-  rvContractility = 25,
-
-  cvpPcwpRatio = 0.6,
-
-  avOpeningFraction = 0,
-
-})  {
-  return (
-    <div className="rounded-3xl border border-slate-800 bg-black p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <div className="text-lg font-bold text-white">Parasternal Long-Axis Echo</div>
-          <div className="text-sm text-slate-400">Echo image module placeholder. Full SVG integration comes next.</div>
-        </div>
-        <Badge variant="secondary" className="rounded-xl border-slate-700 bg-slate-900 text-slate-200">
-          Echo module
-        </Badge>
-      </div>
-      <div className="flex aspect-[16/10] items-center justify-center rounded-2xl border border-slate-800 bg-black text-sm font-semibold text-slate-500">
-        PLAX echo image will render here
-      </div>
-    </div>
-  );
-}
 
 
 // LVAD FlowLab — conceptual HeartMate 3 HQ curve visualizer.
