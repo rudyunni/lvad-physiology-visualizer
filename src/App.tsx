@@ -1232,6 +1232,7 @@ const [lessonMode, setLessonMode] = useState(false);
 const [selectedLessonId, setSelectedLessonId] = useState(1);
 const [showAssumptions, setShowAssumptions] = useState(false);
 const [selectedCaseId, setSelectedCaseId] = useState("free");
+const [selectedCaseQuestionIndex, setSelectedCaseQuestionIndex] = useState(0);
 const [monitorTick, setMonitorTick] = useState(0);
 
 const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contractility, 0.45, 1.25);
@@ -1379,6 +1380,9 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
   const displayedPower = model.suctionMotionActive ? suctionPowerNadir + (model.powerWatts - suctionPowerNadir) * suctionRecoveryFraction : model.powerWatts;
   const displayedPi = model.suctionMotionActive ? suctionPiPeak - (suctionPiPeak - model.piMean) * suctionRecoveryFraction : model.piMean;
   const activeCase = CASE_PRESETS.find((casePreset) => casePreset.id === selectedCaseId);
+  const activeCaseQuestions = activeCase?.secondaryQuestions ?? [];
+  const safeCaseQuestionIndex = activeCaseQuestions.length > 0 ? Math.min(selectedCaseQuestionIndex, activeCaseQuestions.length - 1) : 0;
+  const activeCaseQuestion = activeCaseQuestions[safeCaseQuestionIndex];
   const activeLesson = LESSON_PRESETS.find((lesson) => lesson.id === selectedLessonId) || LESSON_PRESETS[0];
   const pcwpAlertTone = lvPreload > 24 ? "red" : lvPreload > 18 ? "orange" : "normal";
   const pcwpAlertNote = lvPreload > 18 ? "shortness of breath" : "";
@@ -1401,6 +1405,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setAorticInsufficiency(settings.aorticInsufficiency);
     setInflowObstruction(settings.inflowObstruction);
     setSelectedCaseId("free");
+    setSelectedCaseQuestionIndex(0);
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
     setShowEchoResults(false);
@@ -1408,6 +1413,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
 
   const applyCasePreset = (caseId) => {
     setSelectedCaseId(caseId);
+    setSelectedCaseQuestionIndex(0);
     const preset = CASE_PRESETS.find((casePreset) => casePreset.id === caseId);
     if (!preset) return;
     const { settings } = preset;
@@ -1434,6 +1440,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setAorticInsufficiency(0);
     setInflowObstruction(0);
     setSelectedCaseId("free");
+    setSelectedCaseQuestionIndex(0);
     setSelectedLessonId(1);
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
@@ -1560,10 +1567,10 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     </div>
                   )}
                 </div>
-                {activeCase && activeCaseQuestions.length > 0 ? (
+                {activeCase && activeCaseQuestion ? (
                   <div className="min-w-[320px] max-w-md rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
                     <div className="text-xs font-black uppercase tracking-wide text-slate-500">
-                      Follow-up question {selectedCaseQuestionIndex + 1} of {activeCaseQuestions.length}
+                      Follow-up question {safeCaseQuestionIndex + 1} of {activeCaseQuestions.length}
                     </div>
                     <div className="mt-3 text-sm font-black leading-6 text-slate-950">
                       {activeCaseQuestion.question}
@@ -1581,7 +1588,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                         ← Previous
                       </Button>
                       <div className="text-xs font-bold text-slate-500">
-                        {selectedCaseQuestionIndex + 1} / {activeCaseQuestions.length}
+                        {safeCaseQuestionIndex + 1} / {activeCaseQuestions.length}
                       </div>
                       <Button
                         variant="outline"
