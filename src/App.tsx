@@ -1525,11 +1525,11 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                 <ControllerStatCard title="PI" value={format(displayedPi, 1)} unit="" sub={model.suctionMotionActive ? "PI event" : "((Qmax - Qmin) / Qmean) x 10"} hidden={hidePiValue} onToggleHidden={() => setHidePiValue((value) => !value)} />
               </div>
             ) : null}
-            {quizMode ? (
+            {false ? (
               <div className="space-y-3">
-                <LvPressureWaveformCard model={model} map={map} pcwp={lvPreload} />
-              </div>
-            ) : null}
+               <LvPressureWaveformCard model={model} map={map} pcwp={lvPreload} />
+                </div>
+              ) : null}
             <Card className="rounded-3xl shadow-sm"><CardContent className="p-5">
               <div className="mb-3 flex items-center gap-2"><MiniIcon type="info" className="h-5 w-5 text-slate-600" /><div className="text-lg font-bold">Teaching interpretation</div></div>
               <div className="flex flex-wrap items-center gap-2"><Badge className="rounded-xl px-3 py-1 text-sm">{model.status}</Badge></div>
