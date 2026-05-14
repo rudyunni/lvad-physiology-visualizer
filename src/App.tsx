@@ -1456,24 +1456,26 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     </div>
                   )}
                 </div>
-                <div className="grid min-w-[280px] gap-2 text-xs text-slate-700 sm:grid-cols-2 lg:grid-cols-1">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="font-bold text-slate-900">1. Start with LVAD parameters</div>
-                    <div className="mt-1 leading-5">Read the case prompt first. Look at flow, power, PI, and RPM first. Decide what states could be on the differential (e.g., afterload, preload limitation, RV failure, suction, recovery, or obstruction).</div>
+                {!activeCase ? (
+                  <div className="grid min-w-[280px] gap-2 text-xs text-slate-700 sm:grid-cols-2 lg:grid-cols-1">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="font-bold text-slate-900">1. Start with LVAD parameters</div>
+                      <div className="mt-1 leading-5">Read the case prompt first. Look at flow, power, PI, and RPM first. Decide what states could be on the differential.</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="font-bold text-slate-900">2. Build a differential</div>
+                      <div className="mt-1 leading-5">Before clicking anything else, commit to your top two or three explanations for the LVAD numbers.</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="font-bold text-slate-900">3. Reveal clinical clues</div>
+                      <div className="mt-1 leading-5">Sequentially uncover MAP, lung exam, and JVP. Use each clue to narrow or revise your differential.</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="font-bold text-slate-900">4. Predict, reveal, then test</div>
+                      <div className="mt-1 leading-5">Predict where the operating point sits on the HQ curve and what changing RPM will do. Then reveal the graph and try the RPM adjustment.</div>
+                    </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="font-bold text-slate-900">2. Build a differential</div>
-                    <div className="mt-1 leading-5">Before clicking anything else, commit to your top two or three explanations for the LVAD numbers.</div>
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="font-bold text-slate-900">3. Reveal clinical clues</div>
-                    <div className="mt-1 leading-5">Sequentially uncover MAP, lung exam, and JVP. Use each clue to narrow or revise your differential.</div>
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="font-bold text-slate-900">4. Predict, reveal, then test</div>
-                    <div className="mt-1 leading-5">Predict where the operating point sits on the HQ curve and what changing RPM will do. Then reveal the graph and try the RPM adjustment.</div>
-                  </div>
-                </div>
+                ) : null}
               </div>
             </CardContent>
           </Card>
