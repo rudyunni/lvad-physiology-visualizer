@@ -83,7 +83,15 @@ function Slider({
 }
 
 
-function PlaxEchoImageCard() {
+function PlaxEchoImageCard({ lvContractility = 25,
+
+  rvContractility = 25,
+
+  cvpPcwpRatio = 0.6,
+
+  avOpeningFraction = 0,
+
+})  {
   return (
     <div className="rounded-3xl border border-slate-800 bg-black p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -1539,7 +1547,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                 <ControllerStatCard title="PI" value={format(displayedPi, 1)} unit="" sub={model.suctionMotionActive ? "PI event" : "((Qmax - Qmin) / Qmean) x 10"} hidden={hidePiValue} onToggleHidden={() => setHidePiValue((value) => !value)} />
               </div>
             ) : null}
-            <PlaxEchoImageCard /> 
+            
             {showHQGraph ? (
               <HQGraph
                 model={model}
@@ -1575,7 +1583,12 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
               </div>
             ) : null}
 
-            <PlaxEchoImageCard />
+            <PlaxEchoImageCard
+              lvContractility={lvContractility}
+              rvContractility={rvContractility}
+              cvpPcwpRatio={model.cvpPcwpRatio}
+              avOpeningFraction={model.avOpeningFraction}
+            />
 
             {false ? (
               <div className="space-y-3">
