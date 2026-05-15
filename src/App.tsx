@@ -1380,9 +1380,8 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
   const displayedPower = model.suctionMotionActive ? suctionPowerNadir + (model.powerWatts - suctionPowerNadir) * suctionRecoveryFraction : model.powerWatts;
   const displayedPi = model.suctionMotionActive ? suctionPiPeak - (suctionPiPeak - model.piMean) * suctionRecoveryFraction : model.piMean;
   const activeCase = CASE_PRESETS.find((casePreset) => casePreset.id === selectedCaseId);
-  const activeCaseQuestions = activeCase?.secondaryQuestions ?? [];
-  const safeCaseQuestionIndex = activeCaseQuestions.length > 0 ? Math.min(selectedCaseQuestionIndex, activeCaseQuestions.length - 1) : 0;
-  const activeCaseQuestion = activeCaseQuestions[safeCaseQuestionIndex];
+  const activeCaseQuestions = activeCase?.secondaryQuestions || [];
+  const activeCaseQuestion = activeCaseQuestions[selectedCaseQuestionIndex] || activeCaseQuestions[0];
   const activeLesson = LESSON_PRESETS.find((lesson) => lesson.id === selectedLessonId) || LESSON_PRESETS[0];
   const pcwpAlertTone = lvPreload > 24 ? "red" : lvPreload > 18 ? "orange" : "normal";
   const pcwpAlertNote = lvPreload > 18 ? "shortness of breath" : "";
@@ -1405,7 +1404,6 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setAorticInsufficiency(settings.aorticInsufficiency);
     setInflowObstruction(settings.inflowObstruction);
     setSelectedCaseId("free");
-    setSelectedCaseQuestionIndex(0);
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
     setShowEchoResults(false);
@@ -1440,7 +1438,6 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setAorticInsufficiency(0);
     setInflowObstruction(0);
     setSelectedCaseId("free");
-    setSelectedCaseQuestionIndex(0);
     setSelectedLessonId(1);
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
@@ -1567,58 +1564,39 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     </div>
                   )}
                 </div>
-                {activeCase && activeCaseQuestion ? (
-                  <div className="min-w-[320px] max-w-md rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-                    <div className="text-xs font-black uppercase tracking-wide text-slate-500">
-                      Follow-up question {safeCaseQuestionIndex + 1} of {activeCaseQuestions.length}
-                    </div>
-                    <div className="mt-3 text-sm font-black leading-6 text-slate-950">
-                      {activeCaseQuestion.question}
-                    </div>
-                    <div className="mt-3 rounded-2xl border border-indigo-100 bg-white p-3 text-xs leading-5 text-slate-600">
-                      <span className="font-bold text-indigo-700">Hint: </span>
-                      {activeCaseQuestion.hint}
-                    </div>
-                    <div className="mt-4 flex items-center justify-between gap-3">
-                      <Button
-                        variant="outline"
-                        className="rounded-2xl px-3 py-2 text-xs"
-                        onClick={() => setSelectedCaseQuestionIndex((value) => Math.max(0, value - 1))}
-                      >
-                        ← Previous
-                      </Button>
-                      <div className="text-xs font-bold text-slate-500">
-                        {safeCaseQuestionIndex + 1} / {activeCaseQuestions.length}
+                  {activeCase && activeCaseQuestions.length > 0 ? (
+                    <div className="min-w-[320px] max-w-md rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+                      <div className="text-xs font-black uppercase tracking-wide text-slate-500">
+                        Follow-up question {selectedCaseQuestionIndex + 1} of {activeCaseQuestions.length}
                       </div>
-                      <Button
-                        variant="outline"
-                        className="rounded-2xl px-3 py-2 text-xs"
-                        onClick={() => setSelectedCaseQuestionIndex((value) => Math.min(activeCaseQuestions.length - 1, value + 1))}
-                      >
-                        Next →
-                      </Button>
+                      <div className="mt-3 text-sm font-black leading-6 text-slate-950">
+                        {activeCaseQuestion.question}
+                      </div>
+                      <div className="mt-3 rounded-2xl border border-indigo-100 bg-white p-3 text-xs leading-5 text-slate-600">
+                        <span className="font-bold text-indigo-700">Hint: </span>
+                        {activeCaseQuestion.hint}
+                      </div>
+                      <div className="mt-4 flex items-center justify-between gap-3">
+                        <Button
+                          variant="outline"
+                          className="rounded-2xl px-3 py-2 text-xs"
+                          onClick={() => setSelectedCaseQuestionIndex((value) => Math.max(0, value - 1))}
+                        >
+                          ← Previous
+                        </Button>
+                        <div className="text-xs font-bold text-slate-500">
+                          {selectedCaseQuestionIndex + 1} / {activeCaseQuestions.length}
+                        </div>
+                        <Button
+                          variant="outline"
+                          className="rounded-2xl px-3 py-2 text-xs"
+                          onClick={() => setSelectedCaseQuestionIndex((value) => Math.min(activeCaseQuestions.length - 1, value + 1))}
+                        >
+                          Next →
+                        </Button>
+                        </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="grid min-w-[280px] gap-2 text-xs text-slate-700 sm:grid-cols-2 lg:grid-cols-1">
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <div className="font-bold text-slate-900">1. Start with LVAD parameters</div>
-                      <div className="mt-1 leading-5">Read the case prompt first. Look at flow, power, PI, and RPM first. Decide what states could be on the differential.</div>
-                    </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <div className="font-bold text-slate-900">2. Build a differential</div>
-                      <div className="mt-1 leading-5">Before clicking anything else, commit to your top two or three explanations for the LVAD numbers.</div>
-                    </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <div className="font-bold text-slate-900">3. Reveal clinical clues</div>
-                      <div className="mt-1 leading-5">Sequentially uncover MAP, lung exam, and JVP. Use each clue to narrow or revise your differential.</div>
-                    </div>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <div className="font-bold text-slate-900">4. Predict, reveal, then test</div>
-                      <div className="mt-1 leading-5">Predict where the operating point sits on the HQ curve and what changing RPM will do. Then reveal the graph and try the RPM adjustment.</div>
-                    </div>
-                  </div>
-                )}
+                  ) : null}               
               </div>
             </CardContent>
           </Card>
