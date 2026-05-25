@@ -1595,10 +1595,6 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setQuizMode((value) => {
       const nextQuizMode = !value;
       setShowHQGraph(!nextQuizMode);
-      if (nextQuizMode && !CASE_PRESETS.some((casePreset) => casePreset.id === selectedCaseId)) {
-        setSelectedCaseId(CASE_PRESETS[0].id);
-        setSelectedCaseQuestionIndex(0);
-      }
       return nextQuizMode;
     });
     setShowMapExam(false);
