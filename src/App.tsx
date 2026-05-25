@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import PlaxEchoImageCard from "./PlaxEchoImageCard";
 function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return <div className={className}>{children}</div>;
@@ -202,12 +202,12 @@ const CASE_PRESETS = [
     settings: { rpm: 5100, map: 100, lvPreload: 15.5, rvPreload: 8.7, lvContractility: 22, rvContractility: 30 },
     secondaryQuestions: [
       {
-        question: "How does the effect of MAP on flow change when the LVAD speed is increased to 5600 RPM?",
+        question: "How does the effect of afterload on flow, change at higher LVAD speeds?",
         hint: "Watch how the operating point shifts along the higher HQ curve. Does the same increase in afterload now cause a larger or smaller reduction in flow?",
       },
       {
-        question: "How does the effect of MAP on flow change when the patient becomes relatively underfilled? Set PCWP/LVEDP to 9 mmHg.",
-        hint: "Observe what happens to diastolic head pressure and Qmin. Does hypertension become more dangerous when preload reserve is low?",
+        question: "How does the effect of afterload on flow change when the patient becomes relatively underfilled? Set PCWP/LVEDP to 9 mmHg.",
+        hint: "Observe what happens to diastolic head pressure and Qmin. Does hypertension become more dangerous when preload is low?",
       },
       {
         question: "What happens to pulsatility index (PI) as MAP rises during hypertension? Why?",
@@ -234,26 +234,54 @@ const CASE_PRESETS = [
   {
     id: "hypovolemia",
     label: "Case 2: Hypovolemia",
-    question: "Why can hypovolemia make PI rise in some patients but fall in others?",
-    settings: { rpm: 5400, map: 85, lvPreload: 9, rvPreload: 4, lvContractility: 18, rvContractility: 35 },
-  },
-  {
-    id: "rv-failure",
-    label: "Case 3: RV failure",
-    question: "Why can the LVAD be preload-limited even when CVP is high?",
-    settings: { rpm: 5400, map: 78, lvPreload: 11, rvPreload: 18, lvContractility: 20, rvContractility: 8 },
-  },
-  {
-    id: "recovery",
-    label: "Case 4: LV recovery",
-    question: "Why can mean pump flow fall or plateau despite better native LV function and higher pulsatility?",
-    settings: { rpm: 5300, map: 75, lvPreload: 18, rvPreload: 8, lvContractility: 45, rvContractility: 35 },
-  },
-  {
-    id: "ramp-optimization",
-    label: "Case 5: Ramp optimization",
-    question: "Where would you stop the ramp, and what tradeoffs are you balancing?",
-    settings: { rpm: 5000, map: 82, lvPreload: 24, rvPreload: 14, lvContractility: 20, rvContractility: 25 },
+    question: "A 65-year-old woman with a HeartMate 3, presents with low-flow alarms. His MAP is 78 mmHg and his usual flow is 5.2 L/min with a PI of 6.5. He says he's been lightheaded this week and thinks he's seen PIs in the 2s and 3s.",
+    settings: { rpm: 5200, map: 78, lvPreload: 9, rvPreload: 6.5, lvContractility: 18, rvContractility: 23, aorticInsufficiency: 0 },
+    secondaryQuestions: [
+      {
+        question: "How does progressive hypovolemia change the relationship between LVAD speed and flow?",
+        hint: "Reduce PCWP/LVEDP stepwise while increasing RPM. Does higher speed always improve flow once preload becomes limited?",
+      },
+      {
+        question: "At what filling pressure do suction events first begin appearing in this patient?",
+        hint: "Watch the LV cavity size, Qmin, and septal position as preload falls.",
+      },
+      {
+        question: "Why can increasing LVAD speed worsen instability in an underfilled patient?",
+        hint: "LVAD = wedge adjuster. Observe what happens to the LV cavity and inflow conditions at high RPM and low preload.",
+      },
+      {
+        question: "How does hypovolemia affect pulsatility index (PI)?",
+        hint: "Compare effect of falling preload in patients with contractile LVs vs non-contractile.",
+      },
+      {
+        question: "What happens to native aortic valve opening as preload progressively falls?",
+        hint: "Frank starling law. What happens to systolic pressure generation and thus QMax as preload drops?",
+      },
+      {
+        question: "Why can two patients with identical LVAD speeds and MAPs have very different flows during hypovolemia?",
+        hint: "Compare patients with different preload and LV contractility while holding afterload constant.",
+      },
+      {
+        question: "How does low preload change the sensitivity of LVAD flow to afterload?",
+        hint: "Set PCWP/LVEDP low, then increase MAP. Does hypertension now cause a larger drop in flow?",
+      },
+      {
+        question: "What happens to the operating point on the HQ curve as preload falls?",
+        hint: "Watch how reduced diastolic head pressure shifts the operating point during the cardiac cycle.",
+      },
+      {
+        question: "How does reducing RPM compare with giving fluids in an underfilled patient?",
+        hint: "Try both interventions separately. Which improves suction first? Which restores total flow better?",
+      },
+      {
+        question: "At low preload, what happens to Qmax and Qmin differently?",
+        hint: "Look carefully at systolic versus diastolic flow as the ventricle becomes smaller.",
+      },
+      {
+        question: "Why can severe hypovolemia make the LVAD appear “afterload sensitive” even without major hypertension?",
+        hint: "Observe how close the operating point moves toward shut-off pressure when preload is critically reduced.",
+      },
+    ],
   },
 ];
 
@@ -323,6 +351,11 @@ const LESSON_PRESETS = [
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 const format = (n, digits = 1) => Number(n).toFixed(digits);
+const getAiSeverityLabel = (value) => {
+  if (value >= 60) return "Severe";
+  if (value >= 30) return "Moderate";
+  return "None / Mild";
+};
 
 function getCurveParams(rpm) {
   if (CURVE_FITS[rpm]) return CURVE_FITS[rpm];
@@ -369,6 +402,7 @@ function SliderControl({
   unit,
   iconType,
   helper,
+  note,
   compact = false,
   alertTone = "normal",
   alertNote = "",
@@ -394,6 +428,7 @@ function SliderControl({
           className={`shrink-0 rounded-xl border px-2 py-1 text-right ${compact ? "text-xs" : "text-sm"} font-semibold tabular-nums ${alertStyles[alertTone] || alertStyles.normal}`}
         >
           <div>{value}{unit ? ` ${unit}` : ""}</div>
+          {note ? <div className="mt-0.5 text-[10px] leading-tight text-slate-700">{note}</div> : null}
           {alertNote ? <div className="mt-0.5 text-[10px] font-bold leading-none tracking-normal">{alertNote}</div> : null}
         </div>
       </div>
@@ -649,9 +684,9 @@ function QuizPulmonaryExamCard({ pcwp, revealed = true, onReveal = null }) {
     subtext = "Near upper target filling range";
     detail = "Still generally optimized for an LVAD patient, but closer to the congestion threshold.";
     emoji = "🫁";
-    cardClasses = "border-amber-200 bg-amber-50";
-    textClasses = "text-amber-800";
-    badgeClasses = "bg-amber-100 text-amber-800 border-amber-200";
+    cardClasses = "border-slate-200 bg-white";
+    textClasses = "text-slate-800";
+    badgeClasses = "bg-slate-100 text-slate-700 border-slate-200";
   }
 
   if (!revealed) {
@@ -682,9 +717,6 @@ function QuizPulmonaryExamCard({ pcwp, revealed = true, onReveal = null }) {
           <div className={`text-lg font-black ${textClasses}`}>{status}</div>
           <div className="mt-1 text-sm font-semibold text-slate-700">{subtext}</div>
           <div className="mt-2 text-xs leading-5 text-slate-600">{detail}</div>
-          <div className={`mt-3 inline-flex rounded-xl border px-2 py-1 font-mono text-xs font-bold ${badgeClasses}`}>
-            PCWP/LVEDP {format(pcwp, 1)} mmHg
-          </div>
         </div>
       </div>
     </div>
@@ -710,7 +742,7 @@ function QuizPeripheralExamCard({ cvp, revealed = true, onReveal = null }) {
     cardClasses = "border-rose-300 bg-rose-50";
     textClasses = "text-rose-800";
     badgeClasses = "bg-rose-100 text-rose-800 border-rose-200";
-  } else if (cvp >= 13) {
+  } else if (cvp >= 12) {
     status = "Elevated JVP";
     subtext = "Systemic venous congestion";
     detail = "JVP is clearly elevated and leg swelling may be present.";
@@ -725,9 +757,9 @@ function QuizPeripheralExamCard({ cvp, revealed = true, onReveal = null }) {
     detail = "JVP is visible low in the neck without major peripheral congestion.";
     edema = cvp >= 10 ? "Trace edema" : "No edema";
     imageSrc = "/jvp-5-to-12.png";
-    cardClasses = "border-amber-200 bg-amber-50";
-    textClasses = "text-amber-800";
-    badgeClasses = "bg-amber-100 text-amber-800 border-amber-200";
+    cardClasses = "border-slate-200 bg-white";
+    textClasses = "text-slate-800";
+    badgeClasses = "bg-slate-100 text-slate-700 border-slate-200";
   }
 
   if (!revealed) {
@@ -761,13 +793,50 @@ function QuizPeripheralExamCard({ cvp, revealed = true, onReveal = null }) {
           <div className="mt-1 text-sm font-semibold text-slate-700">{subtext}</div>
           <div className="mt-2 text-xs leading-5 text-slate-600">{detail}</div>
           <div className="mt-3 flex flex-wrap gap-2 md:justify-end">
-            <div className={`inline-flex rounded-xl border px-2 py-1 font-mono text-xs font-bold ${badgeClasses}`}>
-              CVP {format(cvp, 1)} mmHg
-            </div>
             <div className="inline-flex rounded-xl border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-700">
               {edema}
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function QuizAICard({ aorticInsufficiency, revealed = true, onReveal = null }) {
+  const severity = aorticInsufficiency >= 50 ? "Severe" : aorticInsufficiency >= 30 ? "Moderate" : "Mild";
+  const description = revealed
+    ? `Aortic insufficiency is ${aorticInsufficiency}% and is raising LV preload while lowering effective aortic pressure.`
+    : "Reveal the AI status to review the valve lesion severity and its effect on LVAD physiology.";
+
+  if (!revealed) {
+    return (
+      <button
+        type="button"
+        onClick={onReveal}
+        className="flex min-h-[180px] w-full items-center justify-between rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40"
+      >
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Aortic Insufficiency</div>
+          <div className="mt-3 text-lg font-black text-slate-950">Assess AI severity</div>
+          <div className="mt-2 max-w-xs text-xs leading-5 text-slate-500">Click to reveal the AI severity card and the effect on preload, MAP, and pump flow.</div>
+        </div>
+        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-700">Reveal</div>
+      </button>
+    );
+  }
+
+  return (
+    <div className="min-h-[180px] rounded-3xl border border-orange-200 bg-orange-50 p-5 shadow-sm">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wide text-orange-600">Aortic insufficiency</div>
+          <div className="mt-3 text-3xl font-black text-orange-900">{format(aorticInsufficiency, 0)}%</div>
+          <div className="mt-1 text-sm font-semibold text-orange-800">{severity} AI</div>
+        </div>
+        <div className="max-w-xs text-sm leading-6 text-orange-900">
+          <p>{description}</p>
+          <p className="mt-3 text-xs text-orange-700">Higher AI raises LV preload, narrows pump head pressure, increases mean flow, and lowers pulsatility index.</p>
         </div>
       </div>
     </div>
@@ -1022,11 +1091,16 @@ function nearestFlowForHead(curve, targetHead) {
 function computeToyModel({ rpm, map, lvPreload, rvPreload, lvContractility, aorticInsufficiency, inflowObstruction, preloadLimitEnabled }) {
   const curve = buildHQCurve({ rpm, obstruction: inflowObstruction });
   const obstructionHeadPenalty = 0.06 * inflowObstruction;
+  const aiInsufficiencyFraction = clamp(aorticInsufficiency / 100, 0, 1);
+  const aiPreloadBoost = clamp(aorticInsufficiency * 0.03, 0, 3);
+  const effectiveLvPreload = clamp(lvPreload + aiPreloadBoost, 2, 35);
+  const effectiveMap = clamp(map - aorticInsufficiency * 0.16, 40, 115);
+
   const contractilityFraction = lvContractility / 50;
-  const frankStarlingFactor = clamp((lvPreload - 5) / 15, 0, 1);
-  const mapAvThreshold = 15 + (map - 75) / 3;
+  const frankStarlingFactor = clamp((effectiveLvPreload - 5) / 15, 0, 1);
+  const mapAvThreshold = 15 + (effectiveMap - 75) / 3;
   const rpmUnloadingPenalty = (rpm - 5300) / 200;
-  const preloadRecruitmentBonus = clamp((lvPreload - 12) / 6, 0, 2);
+  const preloadRecruitmentBonus = clamp((effectiveLvPreload - 12) / 6, 0, 2);
   const avOpeningThreshold = clamp(mapAvThreshold + rpmUnloadingPenalty - preloadRecruitmentBonus, 8, 30);
   const fullAvOpeningThreshold = avOpeningThreshold + 20;
   const preOpeningFraction = clamp(lvContractility / avOpeningThreshold, 0, 1);
@@ -1034,10 +1108,10 @@ function computeToyModel({ rpm, map, lvPreload, rvPreload, lvContractility, aort
   const avOpeningFraction = baseAvOpeningFraction;
   const effectiveContractility = contractilityFraction * frankStarlingFactor;
   const preOpeningPressureFraction = Math.pow(preOpeningFraction, 1.25);
-  const nonOpenSystolicPressure = lvPreload + preOpeningPressureFraction * frankStarlingFactor * Math.max(map - lvPreload, 0);
-  const hClosedSystoleTarget = clamp(map - nonOpenSystolicPressure + obstructionHeadPenalty, 0, GRAPH_Y_MAX);
-  const lvSystolicPressure = avOpeningFraction > 0 ? map : nonOpenSystolicPressure;
-  const hDiastoleTarget = clamp(map - lvPreload + obstructionHeadPenalty, 0, GRAPH_Y_MAX);
+  const nonOpenSystolicPressure = effectiveLvPreload + preOpeningPressureFraction * frankStarlingFactor * Math.max(effectiveMap - effectiveLvPreload, 0);
+  const hClosedSystoleTarget = clamp(effectiveMap - nonOpenSystolicPressure + obstructionHeadPenalty, 0, GRAPH_Y_MAX);
+  const lvSystolicPressure = avOpeningFraction > 0 ? effectiveMap : nonOpenSystolicPressure;
+  const hDiastoleTarget = clamp(effectiveMap - effectiveLvPreload + obstructionHeadPenalty, 0, GRAPH_Y_MAX);
   const hSystoleTarget = avOpeningFraction > 0 ? clamp(obstructionHeadPenalty, 0, GRAPH_Y_MAX) : hClosedSystoleTarget;
   const qDiastoleIdeal = nearestFlowForHead(curve, hDiastoleTarget);
   const qClosedSystoleIdeal = nearestFlowForHead(curve, hClosedSystoleTarget);
@@ -1089,13 +1163,20 @@ function computeToyModel({ rpm, map, lvPreload, rvPreload, lvContractility, aort
   const severePiCollapse = preloadLimited && piMean < 1.5;
   const pressureEqualizationSuction = preloadLimited && rvPreload >= lvPreload - 1;
   const suctionMotionActive = severePreloadLimitation || severePiCollapse || pressureEqualizationSuction;
-  const recircFraction = clamp((aorticInsufficiency / 100) * 0.42, 0, 0.42);
+  const recircFraction = clamp(aiInsufficiencyFraction * 0.42, 0, 0.42);
   const effectiveForwardFlow = pumpFlow * (1 - recircFraction);
   let status = "Balanced";
   let explanation = "The operating point is in a reasonable conceptual range. Try changing PCWP/LVEDP, CVP, MAP, RPM, or LV contractility to see how the dot moves along the curve.";
   if (suctionMotionActive) { status = "Severe preload limitation / suction motion"; explanation = `The model is showing suction-like motion because preload limitation is severe: Qcap is ${format(theoreticalPreloadCap, 2)} L/min, PI is ${format(piMean, 1)}, and CVP/PCWP is ${format(cvpPcwpRatio, 2)}.`; }
   else if (lvPreload < 8) { status = "Preload-limited"; explanation = "Low PCWP/LVEDP raises diastolic pump head and blunts Frank-Starling recruitment, reducing average flow and potentially changing PI."; }
-  else if (aorticInsufficiency > 45) { status = "AI recirculation"; explanation = "Pump flow may look acceptable, but effective systemic flow falls because some flow recirculates through the incompetent aortic valve."; }
+  else if (aorticInsufficiency > 45) {
+    status = "AI recirculation";
+    explanation = `Regurgitant flow increases LV filling and lowers effective aortic pressure. Measured pump flow may rise, but effective systemic flow is ${format(effectiveForwardFlow, 2)} L/min because some volume recirculates back across the valve. PI tends to fall.`;
+  }
+  else if (aorticInsufficiency > 0) {
+    status = "Aortic regurgitation";
+    explanation = `Mild AI raises LV preload and lowers effective aortic pressure, narrowing pump head and increasing mean pump flow while reducing pulsatility.`;
+  }
   else if (inflowObstruction > 45) { status = "Inflow-limited"; explanation = "Inflow obstruction changes the effective curve and can blunt cyclic flow excursion despite changes in pressure head."; }
   else if (map > 95) { status = "Afterload-sensitive"; explanation = `High MAP increases diastolic pump head and raises the EF threshold required for AV opening. Current AV-opening threshold is EF ${format(avOpeningThreshold, 0)}%.`; }
   else if (rvPreload >= lvPreload && preloadLimited) { status = "Preload-limited with possible suction"; explanation = `CVP (${format(rvPreload, 1)} mmHg) is equal to or higher than PCWP/LVEDP (${format(lvPreload, 1)} mmHg), and theoretical systolic pump flow exceeds preload-supported Qmax.`; }
@@ -1107,7 +1188,7 @@ function computeToyModel({ rpm, map, lvPreload, rvPreload, lvContractility, aort
   else if (lvContractility < 35) { status = "Partial AV opening"; explanation = `EF is above the AV-opening threshold but below full recovery. The valve can reach near-zero systolic head, but only for ${format(avOpeningFraction * 100, 0)}% of systole.`; }
   else if (lvPreload > 26) { status = "Congested/high preload"; explanation = "Higher filling pressure lowers diastolic pump head and raises flow; Frank-Starling recruitment eventually plateaus."; }
   else if (lvContractility >= 35) { status = "AV opening/high pulsatility"; explanation = "LV systolic pressure approaches MAP, consistent with more complete aortic valve opening."; }
-  return { rpm, curve, head, hDiastoleTarget, hSystoleTarget, hDiastole, hSystole, qDiastole, qSystole, pumpFlow, powerWatts, theoreticalPreloadCap, preloadLimitEnabled, preloadLimited, optimizedFilling, lowLeftFilling, lvAdequacy, cvpPcwpRatio, rvPenalty, rvLimitedPattern, severePreloadLimitation, severePiCollapse, pressureEqualizationSuction, suctionMotionActive, lvPreload, rvPreload, systolicFraction, diastolicFraction, effectiveForwardFlow, piMean, piRatio, rawPi, flowExcursion, frankStarlingFactor, effectiveContractility, lvSystolicPressure, mapAvThreshold, rpmUnloadingPenalty, preloadRecruitmentBonus, avOpeningThreshold, fullAvOpeningThreshold, preOpeningFraction, preOpeningPressureFraction, hClosedSystole, qClosedSystole, qMeanSystole, baseAvOpeningFraction, afterloadAvModifier: 1, avOpeningFraction, recircFraction, qLow: qDiastole, qHigh: qSystole, hLow: hDiastole, hHigh: hSystole, status, explanation };
+  return { rpm, curve, head, hDiastoleTarget, hSystoleTarget, hDiastole, hSystole, qDiastole, qSystole, pumpFlow, powerWatts, theoreticalPreloadCap, preloadLimitEnabled, preloadLimited, optimizedFilling, lowLeftFilling, lvAdequacy, cvpPcwpRatio, rvPenalty, rvLimitedPattern, severePreloadLimitation, severePiCollapse, pressureEqualizationSuction, suctionMotionActive, lvPreload, rvPreload, systolicFraction, diastolicFraction, effectiveForwardFlow, piMean, piRatio, rawPi, flowExcursion, frankStarlingFactor, effectiveContractility, lvSystolicPressure, mapAvThreshold, rpmUnloadingPenalty, preloadRecruitmentBonus, avOpeningThreshold, fullAvOpeningThreshold, preOpeningFraction, preOpeningPressureFraction, hClosedSystole, qClosedSystole, qMeanSystole, baseAvOpeningFraction, afterloadAvModifier: 1, avOpeningFraction, recircFraction, qLow: qDiastole, qHigh: qSystole, hLow: hDiastole, hHigh: hSystole, status, explanation, effectiveMap, effectiveLvPreload };
 }
 
 function useToyModel(inputs) {
@@ -1222,6 +1303,10 @@ export default function LVADFlowLab() {
   const [hidePiValue, setHidePiValue] = useState(false);
   const [showAllRpmCurves, setShowAllRpmCurves] = useState(false);
   const [showHQGraph, setShowHQGraph] = useState(true);
+  const [showAiReveal, setShowAiReveal] = useState(false);
+  const [clinicalActionStatus, setClinicalActionStatus] = useState("");
+  const standManeuverTimeoutRef = useRef<number | null>(null);
+  const standManeuverIntervalRef = useRef<number | null>(null);
 const [advancedPhysiologyMode, setAdvancedPhysiologyMode] = useState(false);
 const [quizMode, setQuizMode] = useState(false);
 const [showMapExam, setShowMapExam] = useState(false);
@@ -1325,6 +1410,68 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     if (mapDelta !== 0) updatePcwp((value) => value + pcwpDelta, { syncCvp: true });
   };
 
+  const changePcwpMaintainingRatio = (delta) => {
+    const ratio = rvPreload / Math.max(lvPreload, 1);
+    const nextPcwp = clamp(lvPreload + delta, 2, 35);
+    const nextCvp = clamp(nextPcwp * ratio, 2, 35);
+    setLvPreload(nextPcwp);
+    setRvPreload(nextCvp);
+    setClinicalActionStatus(
+      `PCWP ${delta < 0 ? "decreased" : "increased"} ${Math.abs(delta)} mmHg while maintaining the current CVP:PCWP ratio.`
+    );
+  };
+
+  const increaseDiuretic = () => changePcwpMaintainingRatio(-5);
+  const reduceDiuretic = () => changePcwpMaintainingRatio(5);
+  const addAntihypertensive = () => {
+    updateMapAbsolute(map - 8);
+    setClinicalActionStatus("Added antihypertensive: MAP reduced by 8 mmHg.");
+  };
+  const removeAntihypertensive = () => {
+    updateMapAbsolute(map + 8);
+    setClinicalActionStatus("Removed antihypertensive: MAP increased by 8 mmHg.");
+  };
+
+  const bedsideStandManeuver = () => {
+    if (standManeuverTimeoutRef.current) window.clearTimeout(standManeuverTimeoutRef.current);
+    if (standManeuverIntervalRef.current) window.clearInterval(standManeuverIntervalRef.current);
+
+    const ratio = rvPreload / Math.max(lvPreload, 1);
+    const baselinePcwp = lvPreload;
+    const baselineCvp = rvPreload;
+    const targetPcwp = clamp(baselinePcwp - 5, 2, 35);
+    const targetCvp = clamp(targetPcwp * ratio, 2, 35);
+
+    setLvPreload(targetPcwp);
+    setRvPreload(targetCvp);
+    setClinicalActionStatus("Bedside stand maneuver: PCWP and CVP lowered for 2 seconds, then slowly returning to baseline.");
+
+    const steps = 10;
+    const intervalMs = 500;
+    const pcwpStep = (baselinePcwp - targetPcwp) / steps;
+    const cvpStep = (baselineCvp - targetCvp) / steps;
+    let stepCount = 0;
+
+    standManeuverTimeoutRef.current = window.setTimeout(() => {
+      standManeuverIntervalRef.current = window.setInterval(() => {
+        stepCount += 1;
+        setLvPreload((current) => clamp(current + pcwpStep, 2, 35));
+        setRvPreload((current) => clamp(current + cvpStep, 2, 35));
+        if (stepCount >= steps && standManeuverIntervalRef.current) {
+          window.clearInterval(standManeuverIntervalRef.current);
+          standManeuverIntervalRef.current = null;
+        }
+      }, intervalMs);
+    }, 2000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (standManeuverTimeoutRef.current) window.clearTimeout(standManeuverTimeoutRef.current);
+      if (standManeuverIntervalRef.current) window.clearInterval(standManeuverIntervalRef.current);
+    };
+  }, []);
+
   const updateLvContractility = (nextContractility) => {
     setLvContractility((currentContractility) => {
       const threshold = 35;
@@ -1367,6 +1514,8 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
       setShowPulmonaryExam(false);
       setShowPeripheralExam(false);
       setShowEchoResults(false);
+      setShowAiReveal(false);
+      setClinicalActionStatus("");
     }
   }, [quizMode]);
 
@@ -1407,6 +1556,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
     setShowEchoResults(false);
+    setShowAiReveal(false);
   };
 
   const applyCasePreset = (caseId) => {
@@ -1426,6 +1576,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
     setShowEchoResults(false);
+    setShowAiReveal(false);
   };
 
   const reset = () => {
@@ -1442,12 +1593,14 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
     setShowEchoResults(false);
+    setShowAiReveal(false);
   };
 
   const toggleQuizMode = () => {
     setQuizMode((value) => {
       const nextQuizMode = !value;
       setShowHQGraph(!nextQuizMode);
+      if (nextQuizMode) setSelectedCaseId("hypovolemia");
       return nextQuizMode;
     });
     setShowMapExam(false);
@@ -1466,9 +1619,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">An interactive teaching model for understanding how LVAD speed, preload, afterload, contractility, and pump head shape flow, power, pulsatility, and suction physiology.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => setAdvancedPhysiologyMode((value) => !value)} variant={advancedPhysiologyMode ? "default" : "outline"} className="rounded-2xl">{advancedPhysiologyMode ? "Advanced physiology on" : "Advanced physiology off"}</Button>
             <Button onClick={toggleQuizMode} variant={quizMode ? "default" : "outline"} className="rounded-2xl">{quizMode ? "Quiz mode on" : "Quiz mode off"}</Button>
-            <Button onClick={() => setLessonMode((value) => !value)} variant={lessonMode ? "default" : "outline"} className="rounded-2xl">{lessonMode ? "Lesson mode on" : "Lesson mode off"}</Button>
             <Button onClick={() => setShowPreloadLimit((value) => !value)} variant={showPreloadLimit ? "default" : "outline"} className="rounded-2xl">{showPreloadLimit ? "Preload cap on" : "Preload cap off"}</Button>
             <Button onClick={() => setShowHQGraph((value) => !value)} variant={showHQGraph ? "outline" : "default"} className="rounded-2xl">{showHQGraph ? "Hide HQ graph" : "Show HQ graph"}</Button>
             <Button onClick={() => setPaused((value) => !value)} variant="outline" className="rounded-2xl">{paused ? "Play oscillation" : "Pause at mean flow"}</Button>
@@ -1604,12 +1755,28 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.45fr_0.85fr]">
           <div className="space-y-5">
             {quizMode ? (
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                <ControllerStatCard title="Flow" value={format(displayedFlow, 2)} unit="L/min" sub={model.suctionMotionActive ? "suction drop" : `Qd ${format(model.qDiastole, 2)} • Qs ${format(model.qSystole, 2)} L/min`} />
-                <ControllerStatCard title="Power" value={format(displayedPower, 1)} unit="W" sub={model.suctionMotionActive ? "suction drop" : ""} />
-                <RpmCard rpm={rpm} onDecrease={decreaseRpm} onIncrease={increaseRpm} showAllCurves={showAllRpmCurves} onToggleShowAllCurves={() => setShowAllRpmCurves((value) => !value)} />
-                <ControllerStatCard title="PI" value={format(displayedPi, 1)} unit="" sub={model.suctionMotionActive ? "PI event" : "((Qmax - Qmin) / Qmean) x 10"} hidden={hidePiValue} onToggleHidden={() => setHidePiValue((value) => !value)} />
-              </div>
+              <>
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  <ControllerStatCard title="Flow" value={format(displayedFlow, 2)} unit="L/min" sub={model.suctionMotionActive ? "suction drop" : `Qd ${format(model.qDiastole, 2)} • Qs ${format(model.qSystole, 2)} L/min`} />
+                  <ControllerStatCard title="Power" value={format(displayedPower, 1)} unit="W" sub={model.suctionMotionActive ? "suction drop" : ""} />
+                  <RpmCard rpm={rpm} onDecrease={decreaseRpm} onIncrease={increaseRpm} showAllCurves={showAllRpmCurves} onToggleShowAllCurves={() => setShowAllRpmCurves((value) => !value)} />
+                  <ControllerStatCard title="PI" value={format(displayedPi, 1)} unit="" sub={model.suctionMotionActive ? "PI event" : "((Qmax - Qmin) / Qmean) x 10"} hidden={hidePiValue} onToggleHidden={() => setHidePiValue((value) => !value)} />
+                </div>
+                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Clinical actions</div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Button onClick={increaseDiuretic} variant="outline" className="rounded-xl bg-white text-xs">Increase diuretic</Button>
+                    <Button onClick={reduceDiuretic} variant="outline" className="rounded-xl bg-white text-xs">Reduce diuretic</Button>
+                    <Button onClick={addAntihypertensive} variant="outline" className="rounded-xl bg-white text-xs">Add antihypertensive</Button>
+                    <Button onClick={removeAntihypertensive} variant="outline" className="rounded-xl bg-white text-xs">Remove antihypertensive</Button>
+                    <Button onClick={bedsideStandManeuver} variant="secondary" className="rounded-xl bg-white text-xs sm:col-span-2">Bedside stand maneuver</Button>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-slate-600">These actions simulate bedside medication and physiologic maneuvers for the LVAD patient. Diuretics shift PCWP while maintaining the current CVP:PCWP ratio.</p>
+                  {clinicalActionStatus ? (
+                    <p className="mt-3 text-xs leading-5 text-slate-700">{clinicalActionStatus}</p>
+                  ) : null}
+                </div>
+              </>
             ) : null}
             
             {showHQGraph ? (
@@ -1647,13 +1814,20 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
               </div>
             ) : null}
 
-            <PlaxEchoImageCard
-              lvContractility={lvContractility}
-              rvContractility={rvContractility}
-              cvpPcwpRatio={model.cvpPcwpRatio}
-              avOpeningFraction={model.avOpeningFraction}
-              hMin={model.hLow}
-            />
+            {quizMode && !showEchoResults ? (
+              <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-6 shadow-sm">
+                <div className="text-lg font-semibold text-slate-900">POCUS image hidden</div>
+                <div className="mt-2 text-sm text-slate-600">Reveal the Echo/POCUS card from the quiz controls to display the ultrasound image.</div>
+              </div>
+            ) : (
+              <PlaxEchoImageCard
+                lvContractility={lvContractility}
+                rvContractility={rvContractility}
+                cvpPcwpRatio={model.cvpPcwpRatio}
+                avOpeningFraction={model.avOpeningFraction}
+                hMin={model.hLow}
+              />
+            )}
 
             {false ? (
               <div className="space-y-3">
@@ -1696,6 +1870,11 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                         <div className="font-bold text-slate-800">Aortic valve opening</div>
                         <p className="mt-1 text-xs leading-5 text-slate-600">The EF threshold for AV opening shifts with MAP, RPM, and preload. Higher MAP and higher RPM make AV opening harder; higher PCWP/LVEDP modestly helps opening through preload recruitment. Near-complete opening occurs about 20 EF points above the threshold.</p>
                         <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">AV threshold ≈ MAP effect + RPM unloading - preload recruitment</div>
+                      </div>
+                      <div className="rounded-xl bg-slate-50 p-3">
+                        <div className="font-bold text-slate-800">Aortic regurgitation</div>
+                        <p className="mt-1 text-xs leading-5 text-slate-600">AI increases LV diastolic preload and lowers effective aortic pressure, narrowing the pump head gradient. That makes measured pump flow higher while effective systemic flow falls and PI tends to decrease.</p>
+                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">Effective systemic flow = pump flow × (1 − recirculation)</div>
                       </div>
                       <div className="rounded-xl bg-slate-50 p-3">
                         <div className="font-bold text-slate-800">Preload supply cap</div>
@@ -1769,6 +1948,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     iconType="gauge"
                     alertTone={mapAlertTone}
                     alertNote={mapAlertNote}
+                    note={`Effective MAP with AI ${format(model.effectiveMap, 0)} mmHg`}
                     helper="Higher MAP raises diastolic head pressure, tends to reduce flow, and modestly raises PCWP/LVEDP."
                   />
                 )}
@@ -1791,6 +1971,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     iconType="waves"
                     alertTone={pcwpAlertTone}
                     alertNote={pcwpAlertNote}
+                    note={`Effective preload with AI ${format(model.effectiveLvPreload, 1)} mmHg`}
                     helper="Approximate LV filling pressure / pump inflow pressure during diastole. CVP tracks this unless RV contractility changes."
                   />
                 )}
@@ -1818,6 +1999,29 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                         ? `${complianceProfile.rvLabel}; CVP changes with RV stiffness and volume transfer.`
                         : `Tracks PCWP by CVP:PCWP ratio ${format(rvPreload / Math.max(lvPreload, 1), 2)}. Adjust RV contractility to change it.`
                     }
+                  />
+                )}
+
+                {quizMode ? (
+                  <QuizAICard
+                    aorticInsufficiency={aorticInsufficiency}
+                    revealed={showAiReveal}
+                    onReveal={() => setShowAiReveal(true)}
+                  />
+                ) : (
+                  <SliderControl
+                    compact={advancedPhysiologyMode}
+                    label="Aortic insufficiency"
+                    value={aorticInsufficiency}
+                    setValue={setAorticInsufficiency}
+                    min={0}
+                    max={70}
+                    step={35}
+                    unit="%"
+                    iconType="info"
+                    note={`Severity: ${getAiSeverityLabel(aorticInsufficiency)}`}
+                    alertTone={aorticInsufficiency >= 50 ? "red" : aorticInsufficiency >= 30 ? "orange" : "normal"}
+                    helper="Higher AI raises LV preload and lowers effective aortic pressure, increasing pump flow while reducing pulsatility."
                   />
                 )}
 
@@ -1851,19 +2055,6 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
 
 )}
 
-{advancedPhysiologyMode ? <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-3"><div className="mb-2 text-xs font-bold uppercase tracking-wide text-indigo-700">Advanced volume/compliance</div><div className="grid grid-cols-2 gap-2"><Button onClick={volumeChallenge} variant="outline" className="rounded-xl bg-white text-xs">Give fluid</Button><Button onClick={diurese} variant="outline" className="rounded-xl bg-white text-xs">Diurese</Button></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-white p-2"><div className="font-bold text-slate-700">LV</div><div className="text-slate-500">{complianceProfile.lvLabel}</div><div className="mt-1 font-mono text-slate-700">stiffness {format(complianceProfile.lvStiffness, 2)}</div></div><div className="rounded-xl bg-white p-2"><div className="font-bold text-slate-700">RV</div><div className="text-slate-500">{complianceProfile.rvLabel}</div><div className="mt-1 font-mono text-slate-700">stiffness {format(complianceProfile.rvStiffness, 2)}</div></div></div><p className="mt-2 text-xs leading-5 text-indigo-800">Fluid now changes PCWP and CVP with different slopes. Poor RV function raises CVP more and transfers less volume to left-sided filling.</p></div> : null}
-
-{!quizMode ? (
-
-  <>
-
-    <div className="rounded-2xl border bg-white p-3"><div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Frank-Starling curves</div><div className="grid grid-cols-2 gap-3"><div><div className="mb-1 text-xs font-semibold text-slate-500">LV</div><MiniFrankStarlingCurve preload={lvPreload} contractility={lvContractility} kind="LV" /><div className="mt-1 text-xs text-slate-500">PCWP/LVEDP</div></div><div><div className="mb-1 text-xs font-semibold text-slate-500">RV</div><MiniFrankStarlingCurve preload={rvPreload} contractility={rvContractility} kind="RV" /><div className="mt-1 text-xs text-slate-500">CVP</div></div></div></div>
-
-    <AvOpenMiniCard avOpeningFraction={model.avOpeningFraction} hMin={Math.min(model.hLow, model.hHigh)} />
-
-  </>
-
-) : null}
               </div>
             </div>
           </aside>
