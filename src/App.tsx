@@ -1828,96 +1828,6 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                <LvPressureWaveformCard model={model} map={map} pcwp={lvPreload} />
                 </div>
               ) : null}
-            {!quizMode ? (
-  <Card className="rounded-3xl shadow-sm"><CardContent className="p-5">
-              <div className="mb-3 flex items-center gap-2"><MiniIcon type="info" className="h-5 w-5 text-slate-600" /><div className="text-lg font-bold">Teaching interpretation</div></div>
-              <div className="flex flex-wrap items-center gap-2"><Badge className="rounded-xl px-3 py-1 text-sm">{model.status}</Badge></div>
-              {activeCase ? <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3"><div className="text-xs font-bold uppercase tracking-wide text-slate-500">Case question</div><p className="mt-1 text-sm font-semibold leading-6 text-slate-800">{activeCase.question}</p><p className="mt-2 text-xs leading-5 text-slate-500">Case settings loaded: RPM {rpm}, MAP {format(map, 0)} mmHg, PCWP/LVEDP {format(lvPreload, 1)} mmHg, CVP {format(rvPreload, 1)} mmHg, LV EF {format(lvContractility, 0)}%, RV contractility {format(rvContractility, 0)}%.</p></div> : <p className="mt-3 text-sm leading-6 text-slate-600">{showPreloadLimit ? model.explanation : "Preload limiting is currently turned off. The graph is showing the theoretical HQ-curve behavior from pressure-derived head alone, without patient-side flow supply constraints."}</p>}
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setShowAssumptions((value) => !value)}
-                  className="flex w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left hover:bg-slate-50"
-                >
-                  <div>
-                    <div className="text-sm font-bold text-slate-900">Assumptions and Rules</div>
-                    <div className="text-xs text-slate-500">Click to {showAssumptions ? "hide" : "show"} model assumptions, physiology links, and key equations.</div>
-                  </div>
-                  <div className="rounded-xl border bg-slate-50 px-2 py-1 text-xs font-bold text-slate-600">
-                    {showAssumptions ? "Hide" : "Show"}
-                  </div>
-                </button>
-                {showAssumptions ? (
-                  <div className="border-t border-slate-200 px-4 py-3 text-sm leading-6 text-slate-600">
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <div className="font-bold text-slate-800">HQ curve and head pressure</div>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">At fixed RPM, the operating point is selected from the fitted HQ curve. Diastolic head is approximated as MAP - PCWP/LVEDP. Lower head corresponds to higher pump flow along the curve; higher head corresponds to lower pump flow.</p>
-                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">H = MAP - PCWP/LVEDP</div>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <div className="font-bold text-slate-800">Mean pump flow</div>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">The dot cycles between diastolic and systolic operating points. Mean displayed flow is time-weighted toward diastole using a simple 2/3 diastole and 1/3 systole approximation.</p>
-                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">Qmean = 2/3 × Qdiastole + 1/3 × Qsystole</div>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <div className="font-bold text-slate-800">Aortic valve opening</div>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">The EF threshold for AV opening shifts with MAP, RPM, and preload. Higher MAP and higher RPM make AV opening harder; higher PCWP/LVEDP modestly helps opening through preload recruitment. Near-complete opening occurs about 20 EF points above the threshold.</p>
-                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">AV threshold ≈ MAP effect + RPM unloading - preload recruitment</div>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <div className="font-bold text-slate-800">Aortic regurgitation</div>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">AI increases LV diastolic preload and lowers effective aortic pressure, narrowing the pump head gradient. That makes measured pump flow higher while effective systemic flow falls and PI tends to decrease.</p>
-                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">Effective systemic flow = pump flow × (1 − recirculation)</div>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <div className="font-bold text-slate-800">Preload supply cap</div>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">When preload limiting is enabled, the patient-side supply cap can prevent the dot from reaching the theoretical high-flow portion of the HQ curve. Low PCWP/LVEDP and RV-limited filling can both lower Qcap.</p>
-                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">Displayed Q = min(HQ-derived Q, preload-supported Qcap)</div>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <div className="font-bold text-slate-800">Pulsatility index</div>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">PI is modeled from the cyclic flow excursion. Larger separation between Qmax and Qmin raises PI, while severe preload limitation or suction-like behavior can collapse or destabilize PI.</p>
-                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">PI ≈ ((Qmax - Qmin) / Qmean) × 10</div>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <div className="font-bold text-slate-800">Advanced physiology mode</div>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">Advanced mode keeps the same visualizer but links volume changes to PCWP and CVP through nonlinear LV/RV stiffness. Stiffness is intentionally mild in the mid Frank-Starling range and rises mainly near the plateau. Poor RV function raises CVP more and transfers less volume to left-sided filling.</p>
-                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">Current: {complianceProfile.lvLabel}; {complianceProfile.rvLabel}</div>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <div className="font-bold text-slate-800">MAP → wedge pressure</div>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">When MAP is changed directly, the model assumes afterload changes can secondarily shift PCWP/LVEDP. The effect is larger when LV contractile reserve is present, because a more functional LV is more sensitive to loading conditions.</p>
-                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">ΔPCWP = (ΔMAP / 10) × clamp(LV EF / 35, 0, 1)</div>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <div className="font-bold text-slate-800">MAP → CVP</div>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">In simple mode, MAP-related PCWP changes are followed by CVP through the RV contractility-derived CVP:PCWP ratio. In advanced mode, CVP changes according to the pressure change in PCWP multiplied by an RV/LV stiffness coupling factor.</p>
-                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">Simple: CVP = PCWP × CVP:PCWP ratio</div>
-                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">Advanced: ΔCVP = ΔPCWP × clamp((RV stiffness / LV stiffness) × 0.65, 0.25, 1.6)</div>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <div className="font-bold text-slate-800">LV contractility → wedge pressure</div>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">Below an EF/contractility of about 35%, the model mainly changes AV-opening behavior. Once LV contractility rises above 35%, additional native recovery lowers PCWP/LVEDP more strongly, representing improved native LV unloading.</p>
-                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">If EF &gt; 35: ΔPCWP = -Δ(EF above 35) × (10 / 15)</div>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 p-3">
-                        <div className="font-bold text-slate-800">RV contractility → CVP:PCWP ratio</div>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">RV contractility controls how much right-sided pressure is required to support left-sided filling. Poor RV contractility produces a higher CVP:PCWP ratio; better RV contractility lowers the ratio.</p>
-                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">CVP:PCWP = clamp(1.25 - 0.023 × RV contractility, 0.45, 1.25)</div>
-                      </div>
-                      <div className="rounded-xl bg-slate-50 p-3 md:col-span-2">
-                        <div className="font-bold text-slate-800">RPM → wedge pressure</div>
-                        <p className="mt-1 text-xs leading-5 text-slate-600">Changing RPM secondarily changes PCWP/LVEDP in the direction expected from LV unloading. Increasing RPM lowers PCWP/LVEDP; decreasing RPM raises PCWP/LVEDP. In this version, CVP is not directly changed by RPM unless another rule or mode links the pressure change forward.</p>
-                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">RPM increase: ΔPCWP = -ΔRPM / 100</div>
-                        <div className="mt-2 rounded-lg bg-white p-2 font-mono text-xs text-slate-700">RPM decrease: ΔPCWP = +ΔRPM / 100</div>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-             </CardContent></Card>
-              ) : null}
           </div>
           <aside className="space-y-5">
             <div className="rounded-3xl border bg-white/80 p-3 shadow-sm">
@@ -2053,7 +1963,87 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
             </div>
           </aside>
         </div>
-        <footer className="rounded-3xl border bg-white/70 p-4 text-xs leading-5 text-slate-500 shadow-sm">This prototype is for education only. It does not use Abbott proprietary pump equations and should not be used for patient care. HeartMate 3 displayed flow is estimated, not directly measured; clinical speed optimization requires LVAD parameters, MAP, symptoms, echo, invasive hemodynamics, and LVAD team judgment.</footer>
+        <footer className="rounded-3xl border bg-white/70 p-4 text-xs leading-5 text-slate-500 shadow-sm">
+          <div className="flex flex-col gap-3">
+            <div>This prototype is for education only. It does not use Abbott proprietary pump equations and should not be used for patient care. HeartMate 3 displayed flow is estimated, not directly measured; clinical speed optimization requires LVAD parameters, MAP, symptoms, echo, invasive hemodynamics, and LVAD team judgment.</div>
+            <button
+              type="button"
+              onClick={() => setShowAssumptions((value) => !value)}
+              className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              <span>Assumptions and Rules</span>
+              <span className="text-slate-500">{showAssumptions ? "▲ Hide" : "▼ Show"}</span>
+            </button>
+            {showAssumptions ? (
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-xl bg-white p-3 shadow-sm">
+                    <div className="font-bold text-slate-800">HQ curve and head pressure</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">At fixed RPM, the operating point is selected from the fitted HQ curve. Diastolic head is approximated as MAP - PCWP/LVEDP. Lower head corresponds to higher pump flow along the curve; higher head corresponds to lower pump flow.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">H = MAP - PCWP/LVEDP</div>
+                  </div>
+                  <div className="rounded-xl bg-white p-3 shadow-sm">
+                    <div className="font-bold text-slate-800">Mean pump flow</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">The dot cycles between diastolic and systolic operating points. Mean displayed flow is time-weighted toward diastole using a simple 2/3 diastole and 1/3 systole approximation.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">Qmean = 2/3 × Qdiastole + 1/3 × Qsystole</div>
+                  </div>
+                  <div className="rounded-xl bg-white p-3 shadow-sm">
+                    <div className="font-bold text-slate-800">Aortic valve opening</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">The EF threshold for AV opening shifts with MAP, RPM, and preload. Higher MAP and higher RPM make AV opening harder; higher PCWP/LVEDP modestly helps opening through preload recruitment. Near-complete opening occurs about 20 EF points above the threshold.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">AV threshold ≈ MAP effect + RPM unloading - preload recruitment</div>
+                  </div>
+                  <div className="rounded-xl bg-white p-3 shadow-sm">
+                    <div className="font-bold text-slate-800">Aortic regurgitation</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">AI increases LV diastolic preload and lowers effective aortic pressure, narrowing the pump head gradient. That makes measured pump flow higher while effective systemic flow falls and PI tends to decrease.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">Effective systemic flow = pump flow × (1 − recirculation)</div>
+                  </div>
+                  <div className="rounded-xl bg-white p-3 shadow-sm">
+                    <div className="font-bold text-slate-800">Preload supply cap</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">When preload limiting is enabled, the patient-side supply cap can prevent the dot from reaching the theoretical high-flow portion of the HQ curve. Low PCWP/LVEDP and RV-limited filling can both lower Qcap.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">Displayed Q = min(HQ-derived Q, preload-supported Qcap)</div>
+                  </div>
+                  <div className="rounded-xl bg-white p-3 shadow-sm">
+                    <div className="font-bold text-slate-800">Pulsatility index</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">PI is modeled from the cyclic flow excursion. Larger separation between Qmax and Qmin raises PI, while severe preload limitation or suction-like behavior can collapse or destabilize PI.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">PI ≈ ((Qmax - Qmin) / Qmean) × 10</div>
+                  </div>
+                  <div className="rounded-xl bg-white p-3 shadow-sm">
+                    <div className="font-bold text-slate-800">Advanced physiology mode</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">Advanced mode keeps the same visualizer but links volume changes to PCWP and CVP through nonlinear LV/RV stiffness. Stiffness is intentionally mild in the mid Frank-Starling range and rises mainly near the plateau. Poor RV function raises CVP more and transfers less volume to left-sided filling.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">Current: {complianceProfile.lvLabel}; {complianceProfile.rvLabel}</div>
+                  </div>
+                  <div className="rounded-xl bg-white p-3 shadow-sm">
+                    <div className="font-bold text-slate-800">MAP → wedge pressure</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">When MAP is changed directly, the model assumes afterload changes can secondarily shift PCWP/LVEDP. The effect is larger when LV contractile reserve is present, because a more functional LV is more sensitive to loading conditions.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">ΔPCWP = (ΔMAP / 10) × clamp(LV EF / 35, 0, 1)</div>
+                  </div>
+                  <div className="rounded-xl bg-white p-3 shadow-sm">
+                    <div className="font-bold text-slate-800">MAP → CVP</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">In simple mode, MAP-related PCWP changes are followed by CVP through the RV contractility-derived CVP:PCWP ratio. In advanced mode, CVP changes according to the pressure change in PCWP multiplied by an RV/LV stiffness coupling factor.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">Simple: CVP = PCWP × CVP:PCWP ratio</div>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">Advanced: ΔCVP = ΔPCWP × clamp((RV stiffness / LV stiffness) × 0.65, 0.25, 1.6)</div>
+                  </div>
+                  <div className="rounded-xl bg-white p-3 shadow-sm">
+                    <div className="font-bold text-slate-800">LV contractility → wedge pressure</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">Below an EF/contractility of about 35%, the model mainly changes AV-opening behavior. Once LV contractility rises above 35%, additional native recovery lowers PCWP/LVEDP more strongly, representing improved native LV unloading.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">If EF &gt; 35: ΔPCWP = -Δ(EF above 35) × (10 / 15)</div>
+                  </div>
+                  <div className="rounded-xl bg-white p-3 shadow-sm">
+                    <div className="font-bold text-slate-800">RV contractility → CVP:PCWP ratio</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">RV contractility controls how much right-sided pressure is required to support left-sided filling. Poor RV contractility produces a higher CVP:PCWP ratio; better RV contractility lowers the ratio.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">CVP:PCWP = clamp(1.25 - 0.023 × RV contractility, 0.45, 1.25)</div>
+                  </div>
+                  <div className="rounded-xl bg-white p-3 shadow-sm md:col-span-2">
+                    <div className="font-bold text-slate-800">RPM → wedge pressure</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">Changing RPM secondarily changes PCWP/LVEDP in the direction expected from LV unloading. Increasing RPM lowers PCWP/LVEDP; decreasing RPM raises PCWP/LVEDP. In this version, CVP is not directly changed by RPM unless another rule or mode links the pressure change forward.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">RPM increase: ΔPCWP = -ΔRPM / 100</div>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">RPM decrease: ΔPCWP = +ΔRPM / 100</div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </footer>
       </div>
       <footer className="mt-8 border-t border-slate-200 pt-4 text-center text-xs text-slate-500"><div>Created by Dr. Rudy Unni, MD</div><div className="mt-1 inline-flex rounded-xl border bg-white px-3 py-1 text-[11px] font-medium text-slate-500">LVAD FlowLab v7.9 - case selector</div></footer>
     </div>
