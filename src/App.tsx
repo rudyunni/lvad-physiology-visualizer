@@ -725,7 +725,6 @@ function QuizPulmonaryExamCard({ pcwp, revealed = true, onReveal = null }) {
 
 function QuizPeripheralExamCard({ cvp, revealed = true, onReveal = null }) {
   let status = "Flat JVP";
-  let subtext = "No peripheral congestion";
   let detail = "Neck veins are flat and there is no visible leg swelling.";
   let edema = "No edema";
   let imageSrc = "/jvp-flat-to5.png";
@@ -735,7 +734,6 @@ function QuizPeripheralExamCard({ cvp, revealed = true, onReveal = null }) {
 
   if (cvp >= 18) {
     status = "Severely elevated JVP";
-    subtext = "Marked systemic venous congestion";
     detail = "Severe neck-vein distension with very edematous legs.";
     edema = "Severe pitting edema";
     imageSrc = "/jvp-18-up.png";
@@ -743,8 +741,7 @@ function QuizPeripheralExamCard({ cvp, revealed = true, onReveal = null }) {
     textClasses = "text-rose-800";
     badgeClasses = "bg-rose-100 text-rose-800 border-rose-200";
   } else if (cvp >= 12) {
-    status = "Elevated JVP";
-    subtext = "Systemic venous congestion";
+    status = "JVP ~15 cm H2O";
     detail = "JVP is clearly elevated and leg swelling may be present.";
     edema = "Moderate edema";
     imageSrc = "/jvp-13-17.png";
@@ -752,8 +749,7 @@ function QuizPeripheralExamCard({ cvp, revealed = true, onReveal = null }) {
     textClasses = "text-orange-800";
     badgeClasses = "bg-orange-100 text-orange-800 border-orange-200";
   } else if (cvp >= 5) {
-    status = "Mildly elevated JVP";
-    subtext = "Mild right-sided filling pressure";
+    status = "JVP ~8 cm H2O";
     detail = "JVP is visible low in the neck without major peripheral congestion.";
     edema = cvp >= 10 ? "Trace edema" : "No edema";
     imageSrc = "/jvp-5-to-12.png";
@@ -790,7 +786,6 @@ function QuizPeripheralExamCard({ cvp, revealed = true, onReveal = null }) {
         </div>
         <div className="max-w-xs md:text-right">
           <div className={`text-lg font-black ${textClasses}`}>{status}</div>
-          <div className="mt-1 text-sm font-semibold text-slate-700">{subtext}</div>
           <div className="mt-2 text-xs leading-5 text-slate-600">{detail}</div>
           <div className="mt-3 flex flex-wrap gap-2 md:justify-end">
             <div className="inline-flex rounded-xl border border-slate-200 bg-white px-2 py-1 text-xs font-bold text-slate-700">
@@ -1600,7 +1595,10 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setQuizMode((value) => {
       const nextQuizMode = !value;
       setShowHQGraph(!nextQuizMode);
-      if (nextQuizMode) setSelectedCaseId("hypovolemia");
+      if (nextQuizMode && !CASE_PRESETS.some((casePreset) => casePreset.id === selectedCaseId)) {
+        setSelectedCaseId(CASE_PRESETS[0].id);
+        setSelectedCaseQuestionIndex(0);
+      }
       return nextQuizMode;
     });
     setShowMapExam(false);
