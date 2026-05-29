@@ -1955,6 +1955,17 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
 
     <SliderControl compact={advancedPhysiologyMode} label="RV contractility" value={rvContractility} setValue={updateRvContractility} min={0} max={50} step={1} unit="%" iconType="heart" helper={advancedPhysiologyMode ? `Lower RV function increases right-sided stiffness and blunts forward transfer to PCWP.` : "0% = poor RV contractility; 50% = maximum RV contractility. Higher RV contractility lowers CVP:PCWP."} />
 
+    <div className="mt-3 grid grid-cols-2 gap-3">
+      <div>
+        <div className="mb-1 text-xs font-semibold text-slate-500">Frank–Starling (LV)</div>
+        <MiniFrankStarlingCurve preload={lvPreload} contractility={lvContractility} kind="LV" />
+      </div>
+      <div>
+        <div className="mb-1 text-xs font-semibold text-slate-500">Frank–Starling (RV)</div>
+        <MiniFrankStarlingCurve preload={rvPreload} contractility={rvContractility} kind="RV" />
+      </div>
+    </div>
+
   </>
 
 )}
