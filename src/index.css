@@ -128,3 +128,60 @@
     @apply font-sans;
     }
 }
+
+/* App-specific dark mode overrides for utility-heavy markup */
+.dark .lvad-app {
+  background: linear-gradient(135deg, #020617 0%, #0f172a 45%, #111827 100%);
+  color: #e2e8f0;
+}
+
+.dark .lvad-app .text-slate-950,
+.dark .lvad-app .text-slate-900,
+.dark .lvad-app .text-slate-800,
+.dark .lvad-app .text-slate-700,
+.dark .lvad-app .text-slate-600,
+.dark .lvad-app .text-slate-500 {
+  color: #e2e8f0;
+}
+
+.dark .lvad-app .text-slate-400,
+.dark .lvad-app .text-slate-300 {
+  color: #94a3b8;
+}
+
+.dark .lvad-app .bg-white,
+.dark .lvad-app .bg-white\/90,
+.dark .lvad-app .bg-white\/80,
+.dark .lvad-app .bg-white\/70,
+.dark .lvad-app .bg-slate-50,
+.dark .lvad-app .bg-slate-50\/80,
+.dark .lvad-app .bg-slate-100,
+.dark .lvad-app .bg-slate-100\/90 {
+  background-color: #0f172a;
+}
+
+.dark .lvad-app .border-slate-100,
+.dark .lvad-app .border-slate-200,
+.dark .lvad-app .border-slate-300,
+.dark .lvad-app .border-indigo-100,
+.dark .lvad-app .border-indigo-200,
+.dark .lvad-app .border-amber-200 {
+  border-color: #334155;
+}
+
+.dark .lvad-app .bg-amber-50\/90,
+.dark .lvad-app .bg-indigo-50\/80,
+.dark .lvad-app .bg-indigo-50,
+.dark .lvad-app .hover\:bg-indigo-50:hover,
+.dark .lvad-app .hover\:bg-slate-100:hover {
+  background-color: #1e293b;
+}
+
+.dark .lvad-app select,
+.dark .lvad-app input[type="range"] {
+  color: #e2e8f0;
+}
+
+.dark .lvad-app svg text {
+  fill: #cbd5e1;
+}

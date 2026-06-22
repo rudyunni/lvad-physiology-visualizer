@@ -484,10 +484,10 @@ function posteriorAorticValveLeafletOpenPath(width: number, height: number) {
 }
 
 function getAvOpeningPattern(openingFraction: number) {
-  if (openingFraction >= 0.85) return { display: "1/1", sub: "Opens every beat", beats: 1 };
-  if (openingFraction >= 0.55) return { display: "1/2", sub: "Opens every 2 beats", beats: 2 };
-  if (openingFraction >= 0.35) return { display: "1/3", sub: "Opens every 3 beats", beats: 3 };
-  if (openingFraction >= 0.15) return { display: "1/4", sub: "Opens every 4 beats", beats: 4 };
+  if (openingFraction >= 0.35) return { display: "1/1", sub: "Opens every beat", beats: 1 };
+  if (openingFraction >= 0.22) return { display: "1/2", sub: "Opens every 2 beats", beats: 2 };
+  if (openingFraction >= 0.12) return { display: "1/3", sub: "Opens every 3 beats", beats: 3 };
+  if (openingFraction >= 0.05) return { display: "1/4", sub: "Opens every 4 beats", beats: 4 };
   return { display: "Closed", sub: "No effective AV opening", beats: 1 };
 }
 
@@ -788,7 +788,7 @@ function PlaxUltrasoundBackground({ contractility, rvContractility, cvpPcwpRatio
             strokeLinejoin="round"
             opacity="0.95"
           >
-            {avOpeningFraction >= 0.15 ? (
+            {avOpeningFraction >= 0.05 ? (
               <animate
                 attributeName="d"
                 dur={avCycleDuration}
@@ -810,7 +810,7 @@ function PlaxUltrasoundBackground({ contractility, rvContractility, cvpPcwpRatio
             strokeLinejoin="round"
             opacity="0.95"
           >
-            {avOpeningFraction >= 0.15 ? (
+            {avOpeningFraction >= 0.05 ? (
               <animate
                 attributeName="d"
                 dur={avCycleDuration}
@@ -896,7 +896,7 @@ export default function PlaxEchoImageCard({
   avOpeningFraction = 0.85,
   hMin = 999,
 }) {
-  const effectiveAvOpeningFraction = hMin <= 1 ? Math.max(avOpeningFraction, 0.15) : avOpeningFraction;
+  const effectiveAvOpeningFraction = hMin <= 1 ? Math.max(avOpeningFraction, 0.05) : avOpeningFraction;
 
   return (
     <PlaxUltrasoundBackground

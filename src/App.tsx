@@ -235,7 +235,7 @@ const CASE_PRESETS = [
     id: "hypovolemia",
     label: "Case 2: Hypovolemia",
     question: "A 65-year-old woman with a HeartMate 3, presents with low-flow alarms. His MAP is 78 mmHg and his usual flow is 5.2 L/min with a PI of 6.5. He says he's been lightheaded this week and thinks he's seen PIs in the 2s and 3s.",
-    settings: { rpm: 5200, map: 78, lvPreload: 9, rvPreload: 6.5, lvContractility: 18, rvContractility: 23, aorticInsufficiency: 0 },
+    settings: { rpm: 5000, map: 80, lvPreload: 9, rvPreload: 6.9, lvContractility: 22, rvContractility: 23, aorticInsufficiency: 0 },
     secondaryQuestions: [
       {
         question: "How does progressive hypovolemia change the relationship between LVAD speed and flow?",
@@ -351,6 +351,10 @@ const LESSON_PRESETS = [
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 const format = (n, digits = 1) => Number(n).toFixed(digits);
+function computeMapFromSvr({ svr, cardiacOutput, cvp }) {
+  const resistance = clamp(svr, 300, 2000);
+  return cvp + (cardiacOutput * resistance) / 80;
+}
 const getAiSeverityLabel = (value) => {
   if (value >= 60) return "Severe";
   if (value >= 30) return "Moderate";
@@ -450,6 +454,85 @@ function ControllerStatCard({ title, value, unit, sub, hidden = false, onToggleH
         {unit ? <span className="text-sm font-semibold text-slate-300">{unit}</span> : null}
       </div>
       {sub ? <div className="mt-1 font-mono text-xs leading-snug text-slate-400">{sub}</div> : null}
+    </div>
+  );
+}
+
+function HemodynamicMonitorCard({ map, model, displayedPumpFlow, showDebugPanel, onToggleDebug, cvp, pcwp, preloadMode }) {
+  const valveOpening = model.avOpeningFraction > 0.01;
+  const pulsePressure = valveOpening
+    ? clamp(8 + model.avOpeningFraction * 30 + model.nativeFlow * 3, 10, 55)
+    : 0;
+  const systolicPressure = map + (2 / 3) * pulsePressure;
+  const diastolicPressure = map - (1 / 3) * pulsePressure;
+  const hasAi = (model.recircFraction || 0) > 0.01;
+  const fickCO = hasAi ? (model.effectiveForwardFlow + model.nativeFlow) : (displayedPumpFlow + model.nativeFlow);
+
+  return (
+    <div className="rounded-3xl border border-slate-700 bg-slate-950 p-4 text-white shadow-lg">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">Hemodynamic monitor</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={onToggleDebug} className="rounded-lg border border-slate-600 bg-slate-900/90 px-3 py-1 text-[10px] font-semibold text-slate-200 hover:bg-slate-800">
+            {showDebugPanel ? "Hide debug" : "Show debug"}
+          </button>
+          <span className={`h-2.5 w-2.5 rounded-full ${valveOpening ? "bg-emerald-400" : "bg-sky-400"}`} />
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="rounded-2xl border border-slate-700 bg-black/40 p-3">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+            {valveOpening ? "BP" : "MAP"}
+          </div>
+          <div className="mt-1 font-mono text-3xl font-black tabular-nums">
+            {valveOpening
+              ? `${format(systolicPressure, 0)}/${format(diastolicPressure, 0)} (${format(map, 0)})`
+              : format(map, 0)}
+          </div>
+          <div className="mt-1 font-mono text-xs text-slate-400">
+            mmHg
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-700 bg-black/40 p-3">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Fick CO</div>
+          <div className="mt-1 font-mono text-3xl font-black tabular-nums">{format(fickCO, 1)}</div>
+          <div className="mt-1 font-mono text-xs text-slate-400">
+            {hasAi ? `${format(model.effectiveForwardFlow, 1)} pump (forward) + ${format(model.nativeFlow, 1)} native L/min` : `${format(displayedPumpFlow, 1)} pump + ${format(model.nativeFlow, 1)} native L/min`}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-700 bg-black/40 p-3">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">PCWP</div>
+          <div className="mt-1 font-mono text-3xl font-black tabular-nums">{format(pcwp, 1)}</div>
+          <div className="mt-1 font-mono text-xs text-slate-400">
+            mmHg
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-700 bg-black/40 p-3">
+          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">CVP</div>
+          <div className="mt-1 font-mono text-3xl font-black tabular-nums">{format(cvp, 1)}</div>
+          <div className="mt-1 font-mono text-xs text-slate-400">
+            {preloadMode === "msfp" ? "Derived from MSFP" : "Measured"}
+          </div>
+        </div>
+      </div>
+      {showDebugPanel ? (
+        <div className="mt-4 rounded-2xl border border-slate-700 bg-black/40 p-3 text-xs text-slate-200">
+          <div className="grid grid-cols-2 gap-2">
+            <div>pumpFlow</div><div className="font-mono">{format(model.pumpFlow, 2)} L/min</div>
+            <div>effectiveForwardFlow</div><div className="font-mono">{format(model.effectiveForwardFlow, 2)} L/min</div>
+            <div>recircFraction</div><div className="font-mono">{format(model.recircFraction, 2)}</div>
+            <div>cardiacOutput</div><div className="font-mono">{format(model.cardiacOutput, 2)} L/min</div>
+                <div>SVR (MAP - CVP) * 80 / CO</div>
+                <div className="font-mono">{(() => {
+                  const co = Math.max(model.cardiacOutput, 0.01);
+                  const svrCalc = (map - (cvp || 0)) * 80 / co;
+                  return `${format(svrCalc, 0)} dyn·s·cm⁻⁵`;
+                })()}</div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1086,8 +1169,11 @@ function nearestFlowForHead(curve, targetHead) {
 function computeToyModel({ rpm, map, lvPreload, rvPreload, lvContractility, aorticInsufficiency, inflowObstruction, preloadLimitEnabled }) {
   const curve = buildHQCurve({ rpm, obstruction: inflowObstruction });
   const obstructionHeadPenalty = 0.06 * inflowObstruction;
-  const aiInsufficiencyFraction = clamp(aorticInsufficiency / 100, 0, 1);
-  const aiPreloadBoost = clamp(aorticInsufficiency * 0.03, 0, 3);
+  // AI fraction is based on the selected percent but modified by pump speed.
+  const baseAiFraction = clamp(aorticInsufficiency / 100, 0, 1);
+  const rpmModifier = clamp((rpm - 4500) / 3000, -0.6, 1); // negative at low speeds, positive at high speeds
+  const aiInsufficiencyFraction = clamp(baseAiFraction * (1 + 0.8 * rpmModifier), 0, 1);
+  const aiPreloadBoost = clamp(aiInsufficiencyFraction * 100 * 0.03, 0, 3);
   const effectiveLvPreload = clamp(lvPreload + aiPreloadBoost, 2, 35);
   const effectiveMap = clamp(map - aorticInsufficiency * 0.16, 40, 115);
 
@@ -1158,8 +1244,11 @@ function computeToyModel({ rpm, map, lvPreload, rvPreload, lvContractility, aort
   const severePiCollapse = preloadLimited && piMean < 1.5;
   const pressureEqualizationSuction = preloadLimited && rvPreload >= lvPreload - 1;
   const suctionMotionActive = severePreloadLimitation || severePiCollapse || pressureEqualizationSuction;
-  const recircFraction = clamp(aiInsufficiencyFraction * 0.42, 0, 0.42);
+  const recircFraction = clamp(aiInsufficiencyFraction * 0.42, 0, 0.9);
   const effectiveForwardFlow = pumpFlow * (1 - recircFraction);
+  const nativeFlowPotential = 5.5 * contractilityFraction * frankStarlingFactor;
+  const nativeFlow = clamp(nativeFlowPotential * avOpeningFraction * (1 - recircFraction), 0, 6.5);
+  const cardiacOutput = effectiveForwardFlow + nativeFlow;
   let status = "Balanced";
   let explanation = "The operating point is in a reasonable conceptual range. Try changing PCWP/LVEDP, CVP, MAP, RPM, or LV contractility to see how the dot moves along the curve.";
   if (suctionMotionActive) { status = "Severe preload limitation / suction motion"; explanation = `The model is showing suction-like motion because preload limitation is severe: Qcap is ${format(theoreticalPreloadCap, 2)} L/min, PI is ${format(piMean, 1)}, and CVP/PCWP is ${format(cvpPcwpRatio, 2)}.`; }
@@ -1183,7 +1272,7 @@ function computeToyModel({ rpm, map, lvPreload, rvPreload, lvContractility, aort
   else if (lvContractility < 35) { status = "Partial AV opening"; explanation = `EF is above the AV-opening threshold but below full recovery. The valve can reach near-zero systolic head, but only for ${format(avOpeningFraction * 100, 0)}% of systole.`; }
   else if (lvPreload > 26) { status = "Congested/high preload"; explanation = "Higher filling pressure lowers diastolic pump head and raises flow; Frank-Starling recruitment eventually plateaus."; }
   else if (lvContractility >= 35) { status = "AV opening/high pulsatility"; explanation = "LV systolic pressure approaches MAP, consistent with more complete aortic valve opening."; }
-  return { rpm, curve, head, hDiastoleTarget, hSystoleTarget, hDiastole, hSystole, qDiastole, qSystole, pumpFlow, powerWatts, theoreticalPreloadCap, preloadLimitEnabled, preloadLimited, optimizedFilling, lowLeftFilling, lvAdequacy, cvpPcwpRatio, rvPenalty, rvLimitedPattern, severePreloadLimitation, severePiCollapse, pressureEqualizationSuction, suctionMotionActive, lvPreload, rvPreload, systolicFraction, diastolicFraction, effectiveForwardFlow, piMean, piRatio, rawPi, flowExcursion, frankStarlingFactor, effectiveContractility, lvSystolicPressure, mapAvThreshold, rpmUnloadingPenalty, preloadRecruitmentBonus, avOpeningThreshold, fullAvOpeningThreshold, preOpeningFraction, preOpeningPressureFraction, hClosedSystole, qClosedSystole, qMeanSystole, baseAvOpeningFraction, afterloadAvModifier: 1, avOpeningFraction, recircFraction, qLow: qDiastole, qHigh: qSystole, hLow: hDiastole, hHigh: hSystole, status, explanation, effectiveMap, effectiveLvPreload };
+  return { rpm, curve, head, hDiastoleTarget, hSystoleTarget, hDiastole, hSystole, qDiastole, qSystole, pumpFlow, powerWatts, theoreticalPreloadCap, preloadLimitEnabled, preloadLimited, optimizedFilling, lowLeftFilling, lvAdequacy, cvpPcwpRatio, rvPenalty, rvLimitedPattern, severePreloadLimitation, severePiCollapse, pressureEqualizationSuction, suctionMotionActive, lvPreload, rvPreload, systolicFraction, diastolicFraction, effectiveForwardFlow, nativeFlow, cardiacOutput, piMean, piRatio, rawPi, flowExcursion, frankStarlingFactor, effectiveContractility, lvSystolicPressure, mapAvThreshold, rpmUnloadingPenalty, preloadRecruitmentBonus, avOpeningThreshold, fullAvOpeningThreshold, preOpeningFraction, preOpeningPressureFraction, hClosedSystole, qClosedSystole, qMeanSystole, baseAvOpeningFraction, afterloadAvModifier: 1, avOpeningFraction, recircFraction, qLow: qDiastole, qHigh: qSystole, hLow: hDiastole, hHigh: hSystole, status, explanation, effectiveMap, effectiveLvPreload };
 }
 
 function useToyModel(inputs) {
@@ -1282,13 +1371,25 @@ function HQGraph({ model, paused, showPreloadLimit, flipAxes, setFlipAxes, showH
 }
 
 export default function LVADFlowLab() {
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const storedMode = window.localStorage.getItem("lvad-dark-mode");
+    return storedMode === "true";
+  });
   const [rpm, setRpm] = useState(5300);
   const [map, setMap] = useState(82);
+  const [svr, setSvr] = useState(1100);
+  const [afterloadMode, setAfterloadMode] = useState("map");
+  const [preloadMode, setPreloadMode] = useState("cvp");
+  const [msfp, setMsfp] = useState(12);
   const [lvPreload, setLvPreload] = useState(18);
   const [rvPreload, setRvPreload] = useState(12);
   const [lvContractility, setLvContractility] = useState(25);
   const [rvContractility, setRvContractility] = useState(25);
-  const [aorticInsufficiency, setAorticInsufficiency] = useState(0);
+  // Aortic insufficiency level: 0..4 (0 none, 1 mild, 2 moderate, 3 mod-severe, 4 severe)
+  const [aorticInsufficiencyLevel, setAorticInsufficiencyLevel] = useState(0);
+  const AI_LEVEL_TO_PERCENT = [0, 5, 30, 60, 90];
+  const aorticInsufficiency = AI_LEVEL_TO_PERCENT[clamp(aorticInsufficiencyLevel, 0, AI_LEVEL_TO_PERCENT.length - 1)];
   const [inflowObstruction, setInflowObstruction] = useState(0);
   const [paused, setPaused] = useState(false);
   const [showPreloadLimit, setShowPreloadLimit] = useState(true);
@@ -1302,20 +1403,74 @@ export default function LVADFlowLab() {
   const [clinicalActionStatus, setClinicalActionStatus] = useState("");
   const standManeuverTimeoutRef = useRef<number | null>(null);
   const standManeuverIntervalRef = useRef<number | null>(null);
-const [advancedPhysiologyMode, setAdvancedPhysiologyMode] = useState(false);
-const [quizMode, setQuizMode] = useState(false);
-const [showMapExam, setShowMapExam] = useState(false);
-const [showPulmonaryExam, setShowPulmonaryExam] = useState(false);
-const [showPeripheralExam, setShowPeripheralExam] = useState(false);
-const [showEchoResults, setShowEchoResults] = useState(false);
-const [lessonMode, setLessonMode] = useState(false);
-const [selectedLessonId, setSelectedLessonId] = useState(1);
-const [showAssumptions, setShowAssumptions] = useState(false);
-const [selectedCaseId, setSelectedCaseId] = useState("free");
-const [selectedCaseQuestionIndex, setSelectedCaseQuestionIndex] = useState(0);
-const [monitorTick, setMonitorTick] = useState(0);
+  const [advancedPhysiologyMode, setAdvancedPhysiologyMode] = useState(false);
+  const [quizMode, setQuizMode] = useState(false);
+  const [showMapExam, setShowMapExam] = useState(false);
+  const [showPulmonaryExam, setShowPulmonaryExam] = useState(false);
+  const [showPeripheralExam, setShowPeripheralExam] = useState(false);
+  const [showEchoResults, setShowEchoResults] = useState(false);
+  const [lessonMode, setLessonMode] = useState(false);
+  const [selectedLessonId, setSelectedLessonId] = useState(1);
+  const [showAssumptions, setShowAssumptions] = useState(false);
+  const [selectedCaseId, setSelectedCaseId] = useState("free");
+  const [selectedCaseQuestionIndex, setSelectedCaseQuestionIndex] = useState(0);
+  const [monitorTick, setMonitorTick] = useState(0);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
 
 const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contractility, 0.45, 1.25);
+
+  const wetCvpPcwpRatioMultiplier = (pcwp) => {
+    if (pcwp <= 16) return 1;
+    const excess = clamp((pcwp - 16) / 9, 0, 1);
+    return 1 + excess * 0.20;
+  };
+
+  const effectiveCvPpcwpRatio = (pcwp, rvContractility) => {
+    const baseRatio = rvRatioFromContractility(rvContractility);
+    return baseRatio * wetCvpPcwpRatioMultiplier(pcwp);
+  };
+
+  const computePcwpFromMsfp = (msfpValue, rpmValue, lvEf, mapValue) => {
+    const afterloadFactor = clamp((mapValue - 80) / 100, -0.15, 0.3);
+    const contractilityFactor = clamp((50 - lvEf) / 50, 0, 1) * 0.18;
+    const rpmUnloadFactor = clamp((rpmValue - 4500) / 1500, 0, 1) * 1.0;
+    const factor = clamp(1 + afterloadFactor + contractilityFactor - rpmUnloadFactor, 0.65, 1.35);
+    return clamp(msfpValue * factor, 2, 35);
+  };
+
+  const computeNextCvpForPcwp = (
+    nextPcwp,
+    oldCvp,
+    oldCo,
+    nextCo,
+    nextRvContractility = rvContractility,
+    previousPcwp = lvPreload
+  ) => {
+    // Determine wetness from the pre-step PCWP: if the patient was not wet
+    // (previousPcwp <= 16), LVAD speed changes should not alter CVP.
+    const baseRatio = rvRatioFromContractility(nextRvContractility);
+    if (previousPcwp <= 16) return oldCvp;
+
+    // Patient was wet before the step: gentle CVP movement toward the wet-target.
+    const wetRatio = baseRatio * wetCvpPcwpRatioMultiplier(nextPcwp);
+    const wetTarget = clamp(nextPcwp * wetRatio, 2, 35);
+    const minWetCvp = clamp(16 * baseRatio, 2, 35);
+
+    const deltaCo = nextCo - oldCo;
+    if (Math.abs(deltaCo) === 0) return wetTarget;
+
+    const allowedChangeFactor = 0.2; // gentle, tunable
+    const allowedChange = allowedChangeFactor * Math.abs(deltaCo);
+    if (deltaCo > 0) {
+      // Increasing speed/unloading -> CVP tends to fall, but do not drop
+      // CVP below the wet-threshold equivalent (PCWP 16) for this step.
+      const candidate = clamp(Math.max(wetTarget, oldCvp - allowedChange), 2, 35);
+      return Math.max(candidate, minWetCvp);
+    }
+
+    // Decreasing speed -> CVP tends to rise, limited by allowed change.
+    return clamp(Math.min(wetTarget, oldCvp + allowedChange), 2, 35);
+  };
 
   const getComplianceProfile = (pcwp = lvPreload, cvp = rvPreload, lvEf = lvContractility, rvFn = rvContractility) => {
     // Compliance is intentionally nonlinear. In the normal/mid Frank-Starling range,
@@ -1350,15 +1505,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
   const complianceProfile = getComplianceProfile();
 
   const syncCvpToPcwp = (nextPcwp, nextRvContractility = rvContractility, previousPcwp = lvPreload) => {
-    if (advancedPhysiologyMode) {
-      const pcwpDelta = nextPcwp - previousPcwp;
-      const profile = getComplianceProfile(previousPcwp, rvPreload, lvContractility, nextRvContractility);
-      const rvPressureCoupling = clamp((profile.rvStiffness / Math.max(profile.lvStiffness, 0.2)) * 0.65, 0.25, 1.6);
-      setRvPreload((currentCvp) => clamp(currentCvp + pcwpDelta * rvPressureCoupling, 2, 35));
-      return;
-    }
-
-    const nextRatio = rvRatioFromContractility(nextRvContractility);
+    const nextRatio = effectiveCvPpcwpRatio(nextPcwp, nextRvContractility);
     setRvPreload(clamp(nextPcwp * nextRatio, 2, 35));
   };
 
@@ -1398,11 +1545,10 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
 
   const updateMapAbsolute = (nextMap) => {
     const clampedNextMap = clamp(nextMap, 55, 115);
-    const mapDelta = clampedNextMap - map;
-    const lvReserve = clamp(lvContractility / 35, 0, 1);
-    const pcwpDelta = (mapDelta / 10) * lvReserve;
     setMap(clampedNextMap);
-    if (mapDelta !== 0) updatePcwp((value) => value + pcwpDelta, { syncCvp: true });
+  };
+  const updateSvrAbsolute = (nextSvr) => {
+    setSvr(clamp(nextSvr, 300, 2000));
   };
 
   const changePcwpMaintainingRatio = (delta) => {
@@ -1483,8 +1629,25 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     const nextRpm = AVAILABLE_RPMS[Math.max(0, currentIndex - 1)];
     if (nextRpm !== rpm) {
       const rpmDrop = rpm - nextRpm;
+      const oldPcwp = lvPreload;
+      const oldCvp = rvPreload;
+      const oldCo = model.cardiacOutput;
+      const nextPcwp = clamp(oldPcwp + rpmDrop / 100, 2, 35);
+      const candidateModel = computeToyModel({
+        rpm: nextRpm,
+        map,
+        lvPreload: nextPcwp,
+        rvPreload: oldCvp,
+        lvContractility,
+        aorticInsufficiency,
+        inflowObstruction,
+        preloadLimitEnabled: showPreloadLimit,
+      });
+      const nextCo = candidateModel.cardiacOutput;
+      const nextCvp = computeNextCvpForPcwp(nextPcwp, oldCvp, oldCo, nextCo, undefined, oldPcwp);
       setRpm(nextRpm);
-      updatePcwp((value) => value + rpmDrop / 100, { syncCvp: false });
+      setLvPreload(nextPcwp);
+      setRvPreload(nextCvp);
     }
   };
 
@@ -1493,13 +1656,30 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     const nextRpm = AVAILABLE_RPMS[Math.min(AVAILABLE_RPMS.length - 1, currentIndex + 1)];
     if (nextRpm !== rpm) {
       const rpmRise = nextRpm - rpm;
+      const oldPcwp = lvPreload;
+      const oldCvp = rvPreload;
+      const oldCo = model.cardiacOutput;
+      const nextPcwp = clamp(oldPcwp - rpmRise / 100, 2, 35);
+      const candidateModel = computeToyModel({
+        rpm: nextRpm,
+        map,
+        lvPreload: nextPcwp,
+        rvPreload: oldCvp,
+        lvContractility,
+        aorticInsufficiency,
+        inflowObstruction,
+        preloadLimitEnabled: showPreloadLimit,
+      });
+      const nextCo = candidateModel.cardiacOutput;
+      const nextCvp = computeNextCvpForPcwp(nextPcwp, oldCvp, oldCo, nextCo, undefined, oldPcwp);
       setRpm(nextRpm);
-      updatePcwp((value) => value - rpmRise / 100, { syncCvp: false });
+      setLvPreload(nextPcwp);
+      setRvPreload(nextCvp);
     }
   };
 
   useEffect(() => {
-    const id = window.setInterval(() => setMonitorTick((value) => value + 1), 1000);
+    const id = window.setInterval(() => setMonitorTick((value) => value + 1), 200);
     return () => window.clearInterval(id);
   }, []);
 
@@ -1514,7 +1694,62 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     }
   }, [quizMode]);
 
-  const model = useToyModel({ rpm, map, lvPreload, rvPreload, lvContractility, aorticInsufficiency, inflowObstruction, preloadLimitEnabled: showPreloadLimit });
+  useEffect(() => {
+    window.localStorage.setItem("lvad-dark-mode", String(darkMode));
+    document.documentElement.classList.toggle("dark", darkMode);
+  }, [darkMode]);
+
+  const effectivePcwp = preloadMode === "msfp"
+    ? computePcwpFromMsfp(msfp, rpm, lvContractility, map)
+    : lvPreload;
+  const effectiveCvp = preloadMode === "msfp"
+    ? clamp(effectivePcwp * effectiveCvPpcwpRatio(effectivePcwp, rvContractility), 2, 35)
+    : rvPreload;
+
+  const model = useToyModel({ rpm, map, lvPreload: effectivePcwp, rvPreload: effectiveCvp, lvContractility, aorticInsufficiency, inflowObstruction, preloadLimitEnabled: showPreloadLimit });
+  const actualCvPcwpRatio = clamp(effectiveCvp / Math.max(effectivePcwp, 1), 0, 3);
+
+  useEffect(() => {
+    if (afterloadMode !== "svr") return;
+
+    const evaluateMapTarget = (mapCandidate) => {
+      const candidateModel = computeToyModel({
+        rpm,
+        map: mapCandidate,
+        lvPreload,
+        rvPreload,
+        lvContractility,
+        aorticInsufficiency,
+        inflowObstruction,
+        preloadLimitEnabled: showPreloadLimit,
+      });
+      return clamp(
+        computeMapFromSvr({
+          svr,
+          cardiacOutput: candidateModel.cardiacOutput,
+          cvp: rvPreload,
+        }),
+        40,
+        115
+      );
+    };
+
+    let guess = map;
+    for (let i = 0; i < 10; i += 1) {
+      const target = evaluateMapTarget(guess);
+      if (Math.abs(target - guess) < 0.05) {
+        guess = target;
+        break;
+      }
+      guess += (target - guess) * 0.6;
+    }
+
+    const mapTarget = clamp(guess, 40, 115);
+    if (Math.abs(mapTarget - map) > 0.15) {
+      setMap(mapTarget);
+    }
+  }, [afterloadMode, svr, rvPreload, rpm, lvPreload, lvContractility, aorticInsufficiency, inflowObstruction, showPreloadLimit]);
+
   const suctionCyclePosition = monitorTick % 8;
   const suctionRecoveryFraction = model.suctionMotionActive ? clamp(suctionCyclePosition / 4, 0, 1) : 1;
   const suctionFlowNadir = Math.max(0.4, Math.min(model.pumpFlow, model.theoreticalPreloadCap) * 0.45);
@@ -1545,7 +1780,8 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setRvPreload(settings.rvPreload);
     setLvContractility(settings.lvContractility);
     setRvContractility(settings.rvContractility);
-    setAorticInsufficiency(settings.aorticInsufficiency);
+    // map preset percent to nearest AI level
+    setAorticInsufficiencyLevel(AI_LEVEL_TO_PERCENT.reduce((bestIdx, v, idx) => (Math.abs(v - settings.aorticInsufficiency) < Math.abs(AI_LEVEL_TO_PERCENT[bestIdx] - settings.aorticInsufficiency) ? idx : bestIdx), 0));
     setInflowObstruction(settings.inflowObstruction);
     setSelectedCaseId("free");
     setShowPulmonaryExam(false);
@@ -1566,7 +1802,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setRvPreload(settings.rvPreload);
     setLvContractility(settings.lvContractility);
     setRvContractility(settings.rvContractility);
-    setAorticInsufficiency(0);
+    setAorticInsufficiencyLevel(0);
     setInflowObstruction(0);
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
@@ -1577,11 +1813,13 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
   const reset = () => {
     setRpm(5300);
     setMap(82);
+    setSvr(1100);
+    setAfterloadMode("map");
     setLvPreload(18);
     setRvContractility(25);
     setRvPreload(clamp(18 * rvRatioFromContractility(25), 2, 35));
     setLvContractility(25);
-    setAorticInsufficiency(0);
+    setAorticInsufficiencyLevel(0);
     setInflowObstruction(0);
     setSelectedCaseId("free");
     setSelectedLessonId(1);
@@ -1604,19 +1842,27 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 p-5 text-slate-950">
+    <div className={`lvad-app min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 p-5 text-slate-950 ${darkMode ? "app-dark" : ""}`}>
       <div className="mx-auto max-w-7xl space-y-5">
-        <header className="flex flex-col justify-between gap-4 rounded-3xl border bg-white/80 p-6 shadow-sm backdrop-blur md:flex-row md:items-center">
+        <header className={`flex flex-col justify-between gap-4 rounded-3xl border p-6 shadow-sm backdrop-blur md:flex-row md:items-center ${advancedPhysiologyMode ? "border-amber-200 bg-amber-50/90" : "border-slate-200 bg-white/80"}`}>
           <div>
             <div className="mb-2 flex items-center gap-2"><div className="rounded-2xl bg-slate-950 p-2 text-white"><MiniIcon type="heart" className="h-5 w-5" /></div></div>
             <h1 className="text-3xl font-black tracking-tight text-slate-950 md:text-4xl">LVAD Physiology Visualizer</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">An interactive teaching model for understanding how LVAD speed, preload, afterload, contractility, and pump head shape flow, power, pulsatility, and suction physiology.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => setDarkMode((value) => !value)}
+              variant={darkMode ? "default" : "outline"}
+              className="rounded-2xl"
+            >
+              {darkMode ? "Dark mode on" : "Dark mode off"}
+            </Button>
             <Button onClick={toggleQuizMode} variant={quizMode ? "default" : "outline"} className="rounded-2xl">{quizMode ? "Quiz mode on" : "Quiz mode off"}</Button>
             <Button onClick={() => setShowPreloadLimit((value) => !value)} variant={showPreloadLimit ? "default" : "outline"} className="rounded-2xl">{showPreloadLimit ? "Preload cap on" : "Preload cap off"}</Button>
             <Button onClick={() => setShowHQGraph((value) => !value)} variant={showHQGraph ? "outline" : "default"} className="rounded-2xl">{showHQGraph ? "Hide HQ graph" : "Show HQ graph"}</Button>
             <Button onClick={() => setPaused((value) => !value)} variant="outline" className="rounded-2xl">{paused ? "Play oscillation" : "Pause at mean flow"}</Button>
+            <Button onClick={() => setAdvancedPhysiologyMode((value) => !value)} variant={advancedPhysiologyMode ? "default" : "outline"} className="rounded-2xl">{advancedPhysiologyMode ? "Advanced mode on" : "Advanced mode off"}</Button>
             <Button onClick={reset} variant="outline" className="rounded-2xl"><MiniIcon type="reset" className="mr-2 h-4 w-4" />Reset</Button>
             <select value={selectedCaseId} onChange={(event) => applyCasePreset(event.target.value)} className="rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800 shadow-sm">
               <option value="free">Case selector</option>
@@ -1830,6 +2076,9 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
               ) : null}
           </div>
           <aside className="space-y-5">
+              {advancedPhysiologyMode && !quizMode ? (
+              <HemodynamicMonitorCard map={map} model={model} displayedPumpFlow={displayedFlow} showDebugPanel={showDebugPanel} onToggleDebug={() => setShowDebugPanel((v) => !v)} pcwp={effectivePcwp} cvp={effectiveCvp} preloadMode={preloadMode} />
+            ) : null}
             <div className="rounded-3xl border bg-white/80 p-3 shadow-sm">
               <div className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Physiology controls</div>
               <div className="grid grid-cols-1 gap-3">
@@ -1839,6 +2088,78 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     revealed={showMapExam}
                     onReveal={() => setShowMapExam(true)}
                   />
+                ) : advancedPhysiologyMode ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Afterload state</div>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setAfterloadMode("map")}
+                          className={`rounded-full px-3 py-1 text-[11px] font-semibold ${afterloadMode === "map" ? "bg-slate-950 text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"}`}
+                        >
+                          MAP
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAfterloadMode("svr")}
+                          className={`rounded-full px-3 py-1 text-[11px] font-semibold ${afterloadMode === "svr" ? "bg-slate-950 text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"}`}
+                        >
+                          SVR
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Preload state</div>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setPreloadMode("cvp")}
+                          className={`rounded-full px-3 py-1 text-[11px] font-semibold ${preloadMode === "cvp" ? "bg-slate-950 text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"}`}
+                        >
+                          CVP
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPreloadMode("msfp")}
+                          className={`rounded-full px-3 py-1 text-[11px] font-semibold ${preloadMode === "msfp" ? "bg-slate-950 text-white" : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"}`}
+                        >
+                          MSFP
+                        </button>
+                      </div>
+                    </div>
+                    <SliderControl
+                      compact={advancedPhysiologyMode}
+                      label={afterloadMode === "map" ? "MAP" : "SVR"}
+                      value={afterloadMode === "map" ? map : svr}
+                      setValue={afterloadMode === "map" ? updateMapAbsolute : updateSvrAbsolute}
+                      min={afterloadMode === "map" ? 55 : 300}
+                      max={afterloadMode === "map" ? 115 : 2000}
+                      step={afterloadMode === "map" ? 1 : 25}
+                      unit={afterloadMode === "map" ? "mmHg" : "dyn·s·cm⁻⁵"}
+                      iconType="gauge"
+                      alertTone={afterloadMode === "map" ? mapAlertTone : mapAlertTone}
+                      alertNote={afterloadMode === "map" ? mapAlertNote : mapAlertNote}
+                      note={afterloadMode === "map" ? (aorticInsufficiency > 0 ? `Effective MAP with AI ${format(model.effectiveMap, 0)} mmHg` : `MAP ${format(map, 0)} mmHg`) : `Computed MAP ${format(map, 0)} mmHg`}
+                      helper={afterloadMode === "map" ? "Higher MAP raises diastolic head pressure, tends to reduce flow, and modestly raises PCWP/LVEDP." : "Systemic vascular resistance in standard units. MAP is calculated from CVP, total cardiac output, and SVR."}
+                    />
+                    {preloadMode === "msfp" ? (
+                      <SliderControl
+                        compact={advancedPhysiologyMode}
+                        label="MSFP"
+                        value={msfp}
+                        setValue={(next) => setMsfp(clamp(next, 2, 35))}
+                        min={2}
+                        max={35}
+                        step={1}
+                        unit="mmHg"
+                        iconType="waves"
+                        alertTone={preloadMode === "msfp" ? "orange" : "normal"}
+                        note=""
+                        helper=""
+                      />
+                    ) : null}
+                  </div>
                 ) : (
                   <SliderControl
                     compact={advancedPhysiologyMode}
@@ -1852,7 +2173,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     iconType="gauge"
                     alertTone={mapAlertTone}
                     alertNote={mapAlertNote}
-                    note={`Effective MAP with AI ${format(model.effectiveMap, 0)} mmHg`}
+                    note={aorticInsufficiency > 0 ? `Effective MAP with AI ${format(model.effectiveMap, 0)} mmHg` : `MAP ${format(map, 0)} mmHg`}
                     helper="Higher MAP raises diastolic head pressure, tends to reduce flow, and modestly raises PCWP/LVEDP."
                   />
                 )}
@@ -1862,11 +2183,11 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     revealed={showPulmonaryExam}
                     onReveal={() => setShowPulmonaryExam(true)}
                   />
-                ) : (
+                ) : preloadMode === "cvp" ? (
                   <SliderControl
                     compact={advancedPhysiologyMode}
                     label="PCWP / LVEDP"
-                    value={format(lvPreload, 1)}
+                    value={aorticInsufficiency > 0 ? format(model.effectiveLvPreload, 1) : format(lvPreload, 1)}
                     setValue={updatePcwp}
                     min={2}
                     max={35}
@@ -1875,17 +2196,17 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     iconType="waves"
                     alertTone={pcwpAlertTone}
                     alertNote={pcwpAlertNote}
-                    note={`Effective preload with AI ${format(model.effectiveLvPreload, 1)} mmHg`}
+                    note={aorticInsufficiency > 0 ? `Actual PCWP ${format(lvPreload, 1)} mmHg` : `Effective preload with AI ${format(model.effectiveLvPreload, 1)} mmHg`}
                     helper="Approximate LV filling pressure / pump inflow pressure during diastole. CVP tracks this unless RV contractility changes."
                   />
-                )}
+                ) : null}
                 {quizMode ? (
                   <QuizPeripheralExamCard
                     cvp={rvPreload}
                     revealed={showPeripheralExam}
                     onReveal={() => setShowPeripheralExam(true)}
                   />
-                ) : (
+                ) : preloadMode === "cvp" ? (
                   <SliderControl
                     compact={advancedPhysiologyMode}
                     label="CVP"
@@ -1901,10 +2222,11 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     helper={
                       advancedPhysiologyMode
                         ? `${complianceProfile.rvLabel}; CVP changes with RV stiffness and volume transfer.`
-                        : `Tracks PCWP by CVP:PCWP ratio ${format(rvPreload / Math.max(lvPreload, 1), 2)}. Adjust RV contractility to change it.`
+                        : "Tracks PCWP by CVP:PCWP ratio. Adjust RV contractility to change it."
                     }
+                    note={`CVP:PCWP ${format(rvPreload / Math.max(lvPreload, 1), 2)} : 1`}
                   />
-                )}
+                ) : null}
 
                 {quizMode ? (
                   <QuizAICard
@@ -1912,22 +2234,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     revealed={showAiReveal}
                     onReveal={() => setShowAiReveal(true)}
                   />
-                ) : (
-                  <SliderControl
-                    compact={advancedPhysiologyMode}
-                    label="Aortic insufficiency"
-                    value={aorticInsufficiency}
-                    setValue={setAorticInsufficiency}
-                    min={0}
-                    max={70}
-                    step={35}
-                    unit="%"
-                    iconType="info"
-                    note={`Severity: ${getAiSeverityLabel(aorticInsufficiency)}`}
-                    alertTone={aorticInsufficiency >= 50 ? "red" : aorticInsufficiency >= 30 ? "orange" : "normal"}
-                    helper="Higher AI raises LV preload and lowers effective aortic pressure, increasing pump flow while reducing pulsatility."
-                  />
-                )}
+                ) : null}
 
 {quizMode ? (
 
@@ -1952,8 +2259,23 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
   <>
 
     <SliderControl compact={advancedPhysiologyMode} label="LV contractility / EF" value={lvContractility} setValue={updateLvContractility} min={0} max={50} step={1} unit="%" iconType="heart" helper={advancedPhysiologyMode ? `AV-opening threshold still applies; lower EF is treated as ${complianceProfile.lvLabel}.` : "AV-opening EF threshold shifts with MAP, RPM unloading, and PCWP/LVEDP preload recruitment."} />
-
     <SliderControl compact={advancedPhysiologyMode} label="RV contractility" value={rvContractility} setValue={updateRvContractility} min={0} max={50} step={1} unit="%" iconType="heart" helper={advancedPhysiologyMode ? `Lower RV function increases right-sided stiffness and blunts forward transfer to PCWP.` : "0% = poor RV contractility; 50% = maximum RV contractility. Higher RV contractility lowers CVP:PCWP."} />
+    {advancedPhysiologyMode ? (
+      <SliderControl
+        compact={advancedPhysiologyMode}
+        label="Aortic insufficiency"
+        value={aorticInsufficiencyLevel}
+        setValue={setAorticInsufficiencyLevel}
+        min={0}
+        max={4}
+        step={1}
+        unit=""
+        iconType="info"
+        note={`Severity: ${getAiSeverityLabel(aorticInsufficiency)}`}
+        alertTone={aorticInsufficiency >= 50 ? "red" : aorticInsufficiency >= 30 ? "orange" : "normal"}
+        helper="Higher AI raises LV preload and lowers effective aortic pressure, increasing pump flow while reducing pulsatility."
+      />
+    ) : null}
 
     <div className="mt-3 grid grid-cols-2 gap-3">
       <div>
