@@ -198,7 +198,7 @@ const CASE_PRESETS = [
   {
     id: "hypertension",
     label: "Case 1: Hypertension / afterload",
-    question: "A 60-year-old man with a HeartMate 3, presents with low-flow alarms and change in his PI. His usual flow is 5.3 L/min and PI is 5.",
+    question: "A 60-year-old man with a HeartMate 3, presents with low-flow alarms and change in his PI. Her usual flow is 5.3 L/min and PI is 5.",
     settings: { rpm: 5100, map: 100, lvPreload: 15.5, rvPreload: 8.7, lvContractility: 22, rvContractility: 30 },
     secondaryQuestions: [
       {
@@ -283,6 +283,38 @@ const CASE_PRESETS = [
       },
     ],
   },
+  {
+    id: "hypervolemia",
+    label: "Case 3: Hypervolemia / congestion",
+    question: "A 62-year-old man with a HeartMate 3 presents with dyspnea. ",
+    settings: { rpm: 5000, map: 86, lvPreload: 22, rvPreload: 17.4, lvContractility: 17, rvContractility: 24, aorticInsufficiency: 0 },
+    secondaryQuestions: [
+      {
+        question: "As you increase RPM in this congested patient, what happens to PCWP/LVEDP and CVP?",
+        hint: "Watch what happens to the POCUS, look at the RV. Can you just increase speed to fix congestion?",
+      },
+      {
+        question: "In this patient, RV function is not great. How does improved RV function allow you ?",
+        hint: "RV reserve is limited here. Compare how much wedge falls versus how much CVP falls.",
+      },
+      {
+        question: "What happens if you lower speed again while still hypervolemic?",
+        hint: "Observe whether reloading raises CVP and wedge in parallel when congestion persists.",
+      },
+      {
+        question: "How does poor LV contractility (14%) affect AV opening and pulsatility in this wet state?",
+        hint: "Track AV opening behavior and PI as speed and filling pressures change.",
+      },
+      {
+        question: "At a similar MAP, why can this patient remain symptomatic despite a modest wedge reduction?",
+        hint: "Assess residual CVP elevation and ongoing RV-limited physiology.",
+      },
+      {
+        question: "What combination improves congestion most: speed adjustment alone, diuresis alone, or both?",
+        hint: "Try each intervention separately, then combine them and compare PCWP, CVP, and displayed flow.",
+      },
+    ],
+  },
 ];
 
 const LESSON_PRESETS = [
@@ -354,6 +386,17 @@ const format = (n, digits = 1) => Number(n).toFixed(digits);
 function computeMapFromSvr({ svr, cardiacOutput, cvp }) {
   const resistance = clamp(svr, 300, 2000);
   return cvp + (cardiacOutput * resistance) / 80;
+}
+
+function computeFickCardiacOutput({ model, pumpFlowForDisplay }) {
+  const hasAi = (model.recircFraction || 0) > 0.01;
+  const effectivePumpFlow = hasAi ? model.effectiveForwardFlow : pumpFlowForDisplay;
+  return effectivePumpFlow + model.nativeFlow;
+}
+
+function computeSvrFromMap({ map, cvp, cardiacOutput }) {
+  const co = Math.max(cardiacOutput, 0.01);
+  return ((map - (cvp || 0)) * 80) / co;
 }
 const getAiSeverityLabel = (value) => {
   if (value >= 60) return "Severe";
@@ -458,7 +501,7 @@ function ControllerStatCard({ title, value, unit, sub, hidden = false, onToggleH
   );
 }
 
-function HemodynamicMonitorCard({ map, model, displayedPumpFlow, showDebugPanel, onToggleDebug, cvp, pcwp, preloadMode }) {
+function HemodynamicMonitorCard({ map, model, displayedPumpFlow, showDebugPanel, onToggleDebug, cvp, pcwp, preloadMode, afterloadMode, targetSvr }) {
   const valveOpening = model.avOpeningFraction > 0.01;
   const pulsePressure = valveOpening
     ? clamp(8 + model.avOpeningFraction * 30 + model.nativeFlow * 3, 10, 55)
@@ -466,7 +509,8 @@ function HemodynamicMonitorCard({ map, model, displayedPumpFlow, showDebugPanel,
   const systolicPressure = map + (2 / 3) * pulsePressure;
   const diastolicPressure = map - (1 / 3) * pulsePressure;
   const hasAi = (model.recircFraction || 0) > 0.01;
-  const fickCO = hasAi ? (model.effectiveForwardFlow + model.nativeFlow) : (displayedPumpFlow + model.nativeFlow);
+  const fickCO = computeFickCardiacOutput({ model, pumpFlowForDisplay: displayedPumpFlow });
+  const calculatedSvr = computeSvrFromMap({ map, cvp, cardiacOutput: fickCO });
 
   return (
     <div className="rounded-3xl border border-slate-700 bg-slate-950 p-4 text-white shadow-lg">
@@ -524,12 +568,14 @@ function HemodynamicMonitorCard({ map, model, displayedPumpFlow, showDebugPanel,
             <div>effectiveForwardFlow</div><div className="font-mono">{format(model.effectiveForwardFlow, 2)} L/min</div>
             <div>recircFraction</div><div className="font-mono">{format(model.recircFraction, 2)}</div>
             <div>cardiacOutput</div><div className="font-mono">{format(model.cardiacOutput, 2)} L/min</div>
-                <div>SVR (MAP - CVP) * 80 / CO</div>
-                <div className="font-mono">{(() => {
-                  const co = Math.max(model.cardiacOutput, 0.01);
-                  const svrCalc = (map - (cvp || 0)) * 80 / co;
-                  return `${format(svrCalc, 0)} dyn·s·cm⁻⁵`;
-                })()}</div>
+            <div>SVR from MAP/CVP/Fick CO</div>
+            <div className="font-mono">{format(calculatedSvr, 0)} dyn·s·cm⁻⁵</div>
+            {afterloadMode === "svr" ? (
+              <>
+                <div>SVR target (set)</div>
+                <div className="font-mono">{format(targetSvr, 0)} dyn·s·cm⁻⁵</div>
+              </>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -549,7 +595,6 @@ function RpmCard({ rpm, onDecrease, onIncrease, showAllCurves, onToggleShowAllCu
         <div className="font-mono"><span className="text-3xl font-black tabular-nums text-white">{rpm}</span></div>
         <Button onClick={onIncrease} className="h-9 w-9 rounded-xl border-slate-600 bg-slate-950 p-0 font-mono text-white hover:bg-slate-800">↑</Button>
       </div>
-      <div className="mt-1 font-mono text-xs leading-snug text-slate-400">Fitted curve selection</div>
     </div>
   );
 }
@@ -602,145 +647,44 @@ function AvOpenMiniCard({ avOpeningFraction, hMin }) {
   );
 }
 
-function QuizEchoResultsCard({ lvContractility, rvContractility, avOpeningFraction, hMin, revealed = false, onReveal = null }) {
-  const effectiveAvOpeningFraction = hMin <= 1 ? Math.max(avOpeningFraction, 0.15) : avOpeningFraction;
-  let display = "Closed";
-  let sub = "No AV opening";
-  if (effectiveAvOpeningFraction >= 0.85) { display = "1/1"; sub = "Opens every beat"; }
-  else if (effectiveAvOpeningFraction >= 0.55) { display = "1/2"; sub = "Opens every 2 beats"; }
-  else if (effectiveAvOpeningFraction >= 0.35) { display = "1/3"; sub = "Opens every 3 beats"; }
-  else if (effectiveAvOpeningFraction >= 0.15) { display = "1/4"; sub = "Opens every 4 beats"; }
+function QuizMapCard({ map, model, avOpeningFraction = 0, revealed = true, onReveal = null }) {
+  const valveOpeningIntermittent = avOpeningFraction > 0.01;
+  const pulsePressure = valveOpeningIntermittent
+    ? clamp(8 + avOpeningFraction * 30 + model.nativeFlow * 3, 10, 55)
+    : 0;
+  const systolicPressure = map + (2 / 3) * pulsePressure;
+  const diastolicPressure = map - (1 / 3) * pulsePressure;
 
   if (!revealed) {
     return (
       <button
         type="button"
         onClick={onReveal}
-        className="flex min-h-[96px] w-full items-center justify-between rounded-2xl border bg-white/70 p-4 text-left shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40"
+        className="flex min-h-[180px] w-full items-center justify-between rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:bg-slate-50"
       >
-        <div className="flex items-start gap-2">
-          <MiniIcon type="heart" className="mt-0.5 h-4 w-4 shrink-0 text-slate-600" />
-          <div>
-            <div className="text-sm font-semibold text-slate-900">Show recent Echo results</div>
-            <div className="mt-0.5 text-xs leading-snug text-slate-500">Reveal LV EF, RV EF, and aortic valve opening.</div>
-          </div>
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Blood Pressure</div>
         </div>
-        <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-2 py-1 text-xs font-black text-indigo-700">Reveal</div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Reveal</div>
       </button>
     );
   }
 
   return (
-    <div className="rounded-2xl border bg-white/70 p-4 shadow-sm">
-      <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="flex items-start gap-2">
-          <MiniIcon type="heart" className="mt-0.5 h-4 w-4 shrink-0 text-slate-600" />
-          <div>
-            <div className="text-sm font-semibold text-slate-900">Recent Echo results</div>
-            <div className="mt-0.5 text-xs leading-snug text-slate-500">Imaging clues revealed for quiz mode.</div>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={onReveal}
-          className="rounded-lg border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-500 hover:bg-slate-50"
-        >
-          hide
-        </button>
+    <div className="min-h-[180px] rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Blood Pressure</div>
+      <div className="mt-3 text-5xl leading-none font-black tabular-nums text-slate-950">
+        {valveOpeningIntermittent
+              ? `${format(systolicPressure, 0)}/${format(diastolicPressure, 0)} (${format(map, 0)})`
+          : `MAP ${format(map, 0)}`}
       </div>
-
-      <div className="grid gap-2 text-xs md:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-2">
-          <div className="font-bold uppercase tracking-wide text-slate-400">LV EF</div>
-          <div className="mt-1 font-mono text-lg font-black text-slate-950">{format(lvContractility, 0)}%</div>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-2">
-          <div className="font-bold uppercase tracking-wide text-slate-400">RV EF</div>
-          <div className="mt-1 font-mono text-lg font-black text-slate-950">{format(rvContractility, 0)}%</div>
-        </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-2">
-          <div className="font-bold uppercase tracking-wide text-slate-400">AV opening</div>
-          <div className="mt-1 font-mono text-lg font-black text-slate-950">{display}</div>
-          <div className="text-[11px] font-semibold text-slate-500">{sub}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-function QuizMapCard({ map, revealed = true, onReveal = null }) {
-  let status = "Normal MAP";
-  let subtext = "Reasonable afterload range";
-  let detail = "Mean arterial pressure is in a typical LVAD target range.";
-  let cardClasses = "border-slate-200 bg-white";
-  let textClasses = "text-slate-800";
-  let badgeClasses = "bg-slate-100 text-slate-700 border-slate-200";
-
-  if (map >= 100) {
-    status = "Hypertensive";
-    subtext = "High afterload";
-    detail = "Higher MAP increases pump head pressure and can reduce LVAD flow at a fixed speed.";
-    cardClasses = "border-rose-300 bg-rose-50";
-    textClasses = "text-rose-800";
-    badgeClasses = "bg-rose-100 text-rose-800 border-rose-200";
-  } else if (map >= 90) {
-    status = "Elevated MAP";
-    subtext = "Afterload-sensitive range";
-    detail = "MAP is elevated enough that the operating point may move toward higher head and lower flow.";
-    cardClasses = "border-orange-300 bg-orange-50";
-    textClasses = "text-orange-800";
-    badgeClasses = "bg-orange-100 text-orange-800 border-orange-200";
-  } else if (map < 65) {
-    status = "Low MAP";
-    subtext = "Possible low afterload / hypotension";
-    detail = "Low MAP reduces pump head and can increase displayed flow, but may represent poor perfusion clinically.";
-    cardClasses = "border-amber-200 bg-amber-50";
-    textClasses = "text-amber-800";
-    badgeClasses = "bg-amber-100 text-amber-800 border-amber-200";
-  }
-
-  if (!revealed) {
-    return (
-      <button
-        type="button"
-        onClick={onReveal}
-        className="flex min-h-[180px] w-full items-center justify-between rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40"
-      >
-        <div>
-          <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Blood Pressure</div>
-          <div className="mt-3 text-lg font-black text-slate-950">Check MAP</div>
-          <div className="mt-2 max-w-xs text-xs leading-5 text-slate-500">Click to reveal mean arterial pressure and the afterload state.</div>
-        </div>
-        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-700">Reveal</div>
-      </button>
-    );
-  }
-
-  return (
-    <div className={`min-h-[180px] rounded-3xl border p-5 shadow-sm ${cardClasses}`}>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Blood Pressure</div>
-          <div className="mt-3 text-5xl leading-none">🩺</div>
-        </div>
-        <div className="max-w-xs text-right">
-          <div className={`text-lg font-black ${textClasses}`}>{status}</div>
-          <div className="mt-1 text-sm font-semibold text-slate-700">{subtext}</div>
-          <div className="mt-2 text-xs leading-5 text-slate-600">{detail}</div>
-          <div className={`mt-3 inline-flex rounded-xl border px-2 py-1 font-mono text-xs font-bold ${badgeClasses}`}>
-            MAP {format(map, 0)} mmHg
-          </div>
-        </div>
-      </div>
+      <div className="mt-2 text-sm text-slate-500">mmHg</div>
     </div>
   );
 }
 
 function QuizPulmonaryExamCard({ pcwp, revealed = true, onReveal = null }) {
   let status = "Lungs clear";
-  let subtext = "Optimized LVAD filling pressures";
-  let detail = "No crackles or pulmonary congestion on exam.";
   let emoji = "🫁";
   let cardClasses = "border-slate-200 bg-white";
   let textClasses = "text-slate-800";
@@ -748,24 +692,18 @@ function QuizPulmonaryExamCard({ pcwp, revealed = true, onReveal = null }) {
 
   if (pcwp >= 24) {
     status = "Diffuse crackles";
-    subtext = "Orthopnea / pulmonary edema pattern";
-    detail = "Markedly elevated left-sided filling pressure with a wet-lung exam.";
     emoji = "🫁💧💧";
     cardClasses = "border-rose-300 bg-rose-50";
     textClasses = "text-rose-800";
     badgeClasses = "bg-rose-100 text-rose-800 border-rose-200";
   } else if (pcwp >= 18) {
     status = "Bibasal crackles";
-    subtext = "Shortness of breath";
-    detail = "Elevated left-sided filling pressure; this is where things start to fall off the wagon.";
     emoji = "🫁💧";
     cardClasses = "border-orange-300 bg-orange-50";
     textClasses = "text-orange-800";
     badgeClasses = "bg-orange-100 text-orange-800 border-orange-200";
   } else if (pcwp >= 12) {
     status = "Lungs mostly clear";
-    subtext = "Near upper target filling range";
-    detail = "Still generally optimized for an LVAD patient, but closer to the congestion threshold.";
     emoji = "🫁";
     cardClasses = "border-slate-200 bg-white";
     textClasses = "text-slate-800";
@@ -798,8 +736,6 @@ function QuizPulmonaryExamCard({ pcwp, revealed = true, onReveal = null }) {
         </div>
         <div className="max-w-xs text-right">
           <div className={`text-lg font-black ${textClasses}`}>{status}</div>
-          <div className="mt-1 text-sm font-semibold text-slate-700">{subtext}</div>
-          <div className="mt-2 text-xs leading-5 text-slate-600">{detail}</div>
         </div>
       </div>
     </div>
@@ -875,46 +811,6 @@ function QuizPeripheralExamCard({ cvp, revealed = true, onReveal = null }) {
               {edema}
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function QuizAICard({ aorticInsufficiency, revealed = true, onReveal = null }) {
-  const severity = aorticInsufficiency >= 50 ? "Severe" : aorticInsufficiency >= 30 ? "Moderate" : "Mild";
-  const description = revealed
-    ? `Aortic insufficiency is ${aorticInsufficiency}% and is raising LV preload while lowering effective aortic pressure.`
-    : "Reveal the AI status to review the valve lesion severity and its effect on LVAD physiology.";
-
-  if (!revealed) {
-    return (
-      <button
-        type="button"
-        onClick={onReveal}
-        className="flex min-h-[180px] w-full items-center justify-between rounded-3xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-indigo-200 hover:bg-indigo-50/40"
-      >
-        <div>
-          <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Aortic Insufficiency</div>
-          <div className="mt-3 text-lg font-black text-slate-950">Assess AI severity</div>
-          <div className="mt-2 max-w-xs text-xs leading-5 text-slate-500">Click to reveal the AI severity card and the effect on preload, MAP, and pump flow.</div>
-        </div>
-        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-700">Reveal</div>
-      </button>
-    );
-  }
-
-  return (
-    <div className="min-h-[180px] rounded-3xl border border-orange-200 bg-orange-50 p-5 shadow-sm">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div>
-          <div className="text-xs font-bold uppercase tracking-wide text-orange-600">Aortic insufficiency</div>
-          <div className="mt-3 text-3xl font-black text-orange-900">{format(aorticInsufficiency, 0)}%</div>
-          <div className="mt-1 text-sm font-semibold text-orange-800">{severity} AI</div>
-        </div>
-        <div className="max-w-xs text-sm leading-6 text-orange-900">
-          <p>{description}</p>
-          <p className="mt-3 text-xs text-orange-700">Higher AI raises LV preload, narrows pump head pressure, increases mean flow, and lowers pulsatility index.</p>
         </div>
       </div>
     </div>
@@ -1399,10 +1295,11 @@ export default function LVADFlowLab() {
   const [hidePiValue, setHidePiValue] = useState(false);
   const [showAllRpmCurves, setShowAllRpmCurves] = useState(false);
   const [showHQGraph, setShowHQGraph] = useState(true);
-  const [showAiReveal, setShowAiReveal] = useState(false);
   const [clinicalActionStatus, setClinicalActionStatus] = useState("");
+  const [preloadCapHint, setPreloadCapHint] = useState("");
   const standManeuverTimeoutRef = useRef<number | null>(null);
   const standManeuverIntervalRef = useRef<number | null>(null);
+  const preloadCapHintTimeoutRef = useRef<number | null>(null);
   const [advancedPhysiologyMode, setAdvancedPhysiologyMode] = useState(false);
   const [quizMode, setQuizMode] = useState(false);
   const [showMapExam, setShowMapExam] = useState(false);
@@ -1459,17 +1356,36 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     const deltaCo = nextCo - oldCo;
     if (Math.abs(deltaCo) === 0) return wetTarget;
 
-    const allowedChangeFactor = 0.2; // gentle, tunable
+    const hypervolemiaSeverity = clamp((previousPcwp - 18) / 10, 0, 1);
+    const rvVulnerability = clamp((30 - nextRvContractility) / 30, 0, 1);
+
+    const allowedChangeFactor = 0.2; // base gentle response
     const allowedChange = allowedChangeFactor * Math.abs(deltaCo);
     if (deltaCo > 0) {
-      // Increasing speed/unloading -> CVP tends to fall, but do not drop
-      // CVP below the wet-threshold equivalent (PCWP 16) for this step.
-      const candidate = clamp(Math.max(wetTarget, oldCvp - allowedChange), 2, 35);
+      // In hypervolemia, left-sided congestion can worsen RV loading.
+      // During unloading (higher speed), allow a larger CVP fall that scales
+      // with how wet the patient is and with RV vulnerability.
+      const unloadingBoostFactor = 0.6 * hypervolemiaSeverity + 0.25 * hypervolemiaSeverity * rvVulnerability;
+      const boostedAllowedChange = allowedChange * (1 + unloadingBoostFactor);
+      const pcwpRelief = Math.max(previousPcwp - nextPcwp, 0);
+      const reliefBonus = pcwpRelief * (0.08 + 0.22 * hypervolemiaSeverity) * (1 + 0.35 * rvVulnerability);
+      const candidateDrop = boostedAllowedChange + reliefBonus;
+
+      // Keep the floor tied to the wet-threshold equivalent CVP.
+      const candidate = clamp(Math.max(wetTarget, oldCvp - candidateDrop), 2, 35);
       return Math.max(candidate, minWetCvp);
     }
 
-    // Decreasing speed -> CVP tends to rise, limited by allowed change.
-    return clamp(Math.min(wetTarget, oldCvp + allowedChange), 2, 35);
+    // During speed reduction/reloading, allow a larger CVP rise in wet states,
+    // especially when RV reserve is limited.
+    const reloadingBoostFactor = 0.6 * hypervolemiaSeverity + 0.25 * hypervolemiaSeverity * rvVulnerability;
+    const boostedAllowedRise = allowedChange * (1 + reloadingBoostFactor);
+    const pcwpWorsening = Math.max(nextPcwp - previousPcwp, 0);
+    const worseningBonus = pcwpWorsening * (0.08 + 0.22 * hypervolemiaSeverity) * (1 + 0.35 * rvVulnerability);
+    const candidateRise = boostedAllowedRise + worseningBonus;
+
+    // Move upward toward wetTarget while preserving bounded behavior.
+    return clamp(Math.min(wetTarget, oldCvp + candidateRise), 2, 35);
   };
 
   const getComplianceProfile = (pcwp = lvPreload, cvp = rvPreload, lvEf = lvContractility, rvFn = rvContractility) => {
@@ -1562,8 +1478,9 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     );
   };
 
-  const increaseDiuretic = () => changePcwpMaintainingRatio(-5);
-  const reduceDiuretic = () => changePcwpMaintainingRatio(5);
+  const DIURETIC_STEP_MMHG = 4;
+  const increaseDiuretic = () => changePcwpMaintainingRatio(-DIURETIC_STEP_MMHG);
+  const reduceDiuretic = () => changePcwpMaintainingRatio(DIURETIC_STEP_MMHG);
   const addAntihypertensive = () => {
     updateMapAbsolute(map - 8);
     setClinicalActionStatus("Added antihypertensive: MAP reduced by 8 mmHg.");
@@ -1610,6 +1527,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     return () => {
       if (standManeuverTimeoutRef.current) window.clearTimeout(standManeuverTimeoutRef.current);
       if (standManeuverIntervalRef.current) window.clearInterval(standManeuverIntervalRef.current);
+      if (preloadCapHintTimeoutRef.current) window.clearTimeout(preloadCapHintTimeoutRef.current);
     };
   }, []);
 
@@ -1689,7 +1607,6 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
       setShowPulmonaryExam(false);
       setShowPeripheralExam(false);
       setShowEchoResults(false);
-      setShowAiReveal(false);
       setClinicalActionStatus("");
     }
   }, [quizMode]);
@@ -1708,6 +1625,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
 
   const model = useToyModel({ rpm, map, lvPreload: effectivePcwp, rvPreload: effectiveCvp, lvContractility, aorticInsufficiency, inflowObstruction, preloadLimitEnabled: showPreloadLimit });
   const actualCvPcwpRatio = clamp(effectiveCvp / Math.max(effectivePcwp, 1), 0, 3);
+  const effectiveFickCo = computeFickCardiacOutput({ model, pumpFlowForDisplay: model.pumpFlow });
 
   useEffect(() => {
     if (afterloadMode !== "svr") return;
@@ -1716,18 +1634,22 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
       const candidateModel = computeToyModel({
         rpm,
         map: mapCandidate,
-        lvPreload,
-        rvPreload,
+        lvPreload: effectivePcwp,
+        rvPreload: effectiveCvp,
         lvContractility,
         aorticInsufficiency,
         inflowObstruction,
         preloadLimitEnabled: showPreloadLimit,
       });
+      const candidateFickCo = computeFickCardiacOutput({
+        model: candidateModel,
+        pumpFlowForDisplay: candidateModel.pumpFlow,
+      });
       return clamp(
         computeMapFromSvr({
           svr,
-          cardiacOutput: candidateModel.cardiacOutput,
-          cvp: rvPreload,
+          cardiacOutput: candidateFickCo,
+          cvp: effectiveCvp,
         }),
         40,
         115
@@ -1748,7 +1670,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     if (Math.abs(mapTarget - map) > 0.15) {
       setMap(mapTarget);
     }
-  }, [afterloadMode, svr, rvPreload, rpm, lvPreload, lvContractility, aorticInsufficiency, inflowObstruction, showPreloadLimit]);
+  }, [afterloadMode, svr, effectiveCvp, effectivePcwp, rpm, lvContractility, aorticInsufficiency, inflowObstruction, showPreloadLimit]);
 
   const suctionCyclePosition = monitorTick % 8;
   const suctionRecoveryFraction = model.suctionMotionActive ? clamp(suctionCyclePosition / 4, 0, 1) : 1;
@@ -1787,7 +1709,6 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
     setShowEchoResults(false);
-    setShowAiReveal(false);
   };
 
   const applyCasePreset = (caseId) => {
@@ -1807,7 +1728,6 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
     setShowEchoResults(false);
-    setShowAiReveal(false);
   };
 
   const reset = () => {
@@ -1826,7 +1746,6 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
     setShowEchoResults(false);
-    setShowAiReveal(false);
   };
 
   const toggleQuizMode = () => {
@@ -1839,6 +1758,23 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     setShowPulmonaryExam(false);
     setShowPeripheralExam(false);
     setShowEchoResults(false);
+  };
+
+  const togglePreloadCapWithHint = () => {
+    setShowPreloadLimit((value) => {
+      const nextValue = !value;
+      setPreloadCapHint(
+        nextValue
+          ? "Preload cap is on: when venous return and thus PCWP is limited, the model applies a flow ceiling (Qcap), so increasing speed alone may not meaningfully raise flow. The LVAD can't pump blood that it's not receiving."
+          : "Preload cap is off: the simulator will not enforce venous-return flow limitation, so flow follows the HQ relationship without a preload ceiling."
+      );
+      if (preloadCapHintTimeoutRef.current) window.clearTimeout(preloadCapHintTimeoutRef.current);
+      preloadCapHintTimeoutRef.current = window.setTimeout(() => {
+        setPreloadCapHint("");
+        preloadCapHintTimeoutRef.current = null;
+      }, 4500);
+      return nextValue;
+    });
   };
 
   return (
@@ -1859,7 +1795,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
               {darkMode ? "Dark mode on" : "Dark mode off"}
             </Button>
             <Button onClick={toggleQuizMode} variant={quizMode ? "default" : "outline"} className="rounded-2xl">{quizMode ? "Quiz mode on" : "Quiz mode off"}</Button>
-            <Button onClick={() => setShowPreloadLimit((value) => !value)} variant={showPreloadLimit ? "default" : "outline"} className="rounded-2xl">{showPreloadLimit ? "Preload cap on" : "Preload cap off"}</Button>
+            <Button onClick={togglePreloadCapWithHint} variant={showPreloadLimit ? "default" : "outline"} className="rounded-2xl">{showPreloadLimit ? "Preload cap on" : "Preload cap off"}</Button>
             <Button onClick={() => setShowHQGraph((value) => !value)} variant={showHQGraph ? "outline" : "default"} className="rounded-2xl">{showHQGraph ? "Hide HQ graph" : "Show HQ graph"}</Button>
             <Button onClick={() => setPaused((value) => !value)} variant="outline" className="rounded-2xl">{paused ? "Play oscillation" : "Pause at mean flow"}</Button>
             <Button onClick={() => setAdvancedPhysiologyMode((value) => !value)} variant={advancedPhysiologyMode ? "default" : "outline"} className="rounded-2xl">{advancedPhysiologyMode ? "Advanced mode on" : "Advanced mode off"}</Button>
@@ -1870,6 +1806,11 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
             </select>
           </div>
         </header>
+        {preloadCapHint ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 shadow-sm">
+            {preloadCapHint}
+          </div>
+        ) : null}
         {lessonMode ? (
           <Card className="rounded-3xl border border-indigo-200 bg-indigo-50/80 shadow-sm">
             <CardContent className="p-5">
@@ -1913,16 +1854,14 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
         ) : null}
 
         {quizMode ? (
-          <Card className="rounded-3xl border border-slate-200 bg-white/90 shadow-sm backdrop-blur">
-            <CardContent className="p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div className="max-w-5xl">
-                  <div className="mb-2 flex items-center gap-2">
-                    <MiniIcon type="info" className="h-5 w-5 text-slate-600" />
-                    <div className="text-xs font-black uppercase tracking-wide text-slate-500">Quiz details</div>
-                  </div>
-                  <h2 className="text-2xl font-black tracking-tight text-slate-950">Work through the LVAD physiology before revealing the answer</h2>
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
+          <Card className="rounded-2xl border border-slate-200 bg-white/90 shadow-sm backdrop-blur">
+            <CardContent className="p-3">
+              <div className="mb-1 flex items-center gap-2">
+                <MiniIcon type="info" className="h-5 w-5 text-slate-600" />
+                <div className="text-xs font-black uppercase tracking-wide text-slate-500">Quiz details</div>
+              </div>
+              <h2 className="text-base font-black tracking-tight text-slate-950">Work through the LVAD physiology before revealing the answer</h2>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 {CASE_PRESETS.map((casePreset, index) => (
                   <button
                     key={casePreset.id}
@@ -1940,14 +1879,17 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                   </button>
                 ))}
               </div>
+
+              <div className="mt-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
+                <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">Case prompt</div>
+                <div className="max-h-32 space-y-3 overflow-y-auto pr-1">
                   {activeCase ? (
-                    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                      <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Case prompt</div>
-                      <p className="mt-1 text-sm font-semibold leading-6 text-slate-800">{activeCase.question}</p>
-                      <p className="mt-2 text-xs leading-5 text-slate-500">Use the controller values first, then reveal clinical clues one at a time before opening the HQ graph.</p>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                      <p className="text-sm font-semibold leading-5 text-slate-800">{activeCase.question}</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">Use controller values first, then reveal clinical clues before opening the HQ graph.</p>
                     </div>
                   ) : (
-                    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-3">
                       <div className="text-xs font-bold uppercase tracking-wide text-slate-500">Learner task</div>
                       <p className="mt-1 text-sm leading-6 text-slate-700">
                         Review the LVAD controller values first. Generate a differential diagnosis before revealing MAP, lung exam, and JVP. Then predict the HQ-curve position and whether increasing or decreasing RPM should improve flow, worsen suction risk, or have limited effect.
@@ -1955,39 +1897,6 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     </div>
                   )}
                 </div>
-                  {activeCase && activeCaseQuestions.length > 0 ? (
-                    <div className="min-w-[320px] max-w-md rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-                      <div className="text-xs font-black uppercase tracking-wide text-slate-500">
-                        Follow-up question {selectedCaseQuestionIndex + 1} of {activeCaseQuestions.length}
-                      </div>
-                      <div className="mt-3 text-sm font-black leading-6 text-slate-950">
-                        {activeCaseQuestion.question}
-                      </div>
-                      <div className="mt-3 rounded-2xl border border-indigo-100 bg-white p-3 text-xs leading-5 text-slate-600">
-                        <span className="font-bold text-indigo-700">Hint: </span>
-                        {activeCaseQuestion.hint}
-                      </div>
-                      <div className="mt-4 flex items-center justify-between gap-3">
-                        <Button
-                          variant="outline"
-                          className="rounded-2xl px-3 py-2 text-xs"
-                          onClick={() => setSelectedCaseQuestionIndex((value) => Math.max(0, value - 1))}
-                        >
-                          ← Previous
-                        </Button>
-                        <div className="text-xs font-bold text-slate-500">
-                          {selectedCaseQuestionIndex + 1} / {activeCaseQuestions.length}
-                        </div>
-                        <Button
-                          variant="outline"
-                          className="rounded-2xl px-3 py-2 text-xs"
-                          onClick={() => setSelectedCaseQuestionIndex((value) => Math.min(activeCaseQuestions.length - 1, value + 1))}
-                        >
-                          Next →
-                        </Button>
-                        </div>
-                    </div>
-                  ) : null}               
               </div>
             </CardContent>
           </Card>
@@ -1997,24 +1906,32 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
             {quizMode ? (
               <>
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                  <ControllerStatCard title="Flow" value={format(displayedFlow, 2)} unit="L/min" sub={model.suctionMotionActive ? "suction drop" : `Qd ${format(model.qDiastole, 2)} • Qs ${format(model.qSystole, 2)} L/min`} />
-                  <ControllerStatCard title="Power" value={format(displayedPower, 1)} unit="W" sub={model.suctionMotionActive ? "suction drop" : ""} />
-                  <RpmCard rpm={rpm} onDecrease={decreaseRpm} onIncrease={increaseRpm} showAllCurves={showAllRpmCurves} onToggleShowAllCurves={() => setShowAllRpmCurves((value) => !value)} />
-                  <ControllerStatCard title="PI" value={format(displayedPi, 1)} unit="" sub={model.suctionMotionActive ? "PI event" : "((Qmax - Qmin) / Qmean) x 10"} hidden={hidePiValue} onToggleHidden={() => setHidePiValue((value) => !value)} />
-                </div>
-                <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <div className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Clinical actions</div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Button onClick={increaseDiuretic} variant="outline" className="rounded-xl bg-white text-xs">Increase diuretic</Button>
-                    <Button onClick={reduceDiuretic} variant="outline" className="rounded-xl bg-white text-xs">Reduce diuretic</Button>
-                    <Button onClick={addAntihypertensive} variant="outline" className="rounded-xl bg-white text-xs">Add antihypertensive</Button>
-                    <Button onClick={removeAntihypertensive} variant="outline" className="rounded-xl bg-white text-xs">Remove antihypertensive</Button>
-                    <Button onClick={bedsideStandManeuver} variant="secondary" className="rounded-xl bg-white text-xs sm:col-span-2">Bedside stand maneuver</Button>
+                  <div className="rounded-2xl border border-slate-700 bg-black p-4 shadow-sm">
+                    <div className="text-[11px] font-bold uppercase tracking-wide text-slate-300">Flow</div>
+                    <div className="mt-2 flex items-baseline gap-1 font-mono">
+                      <span className="text-4xl font-black tabular-nums text-white">{format(displayedFlow, 2)}</span>
+                      <span className="text-sm font-semibold text-slate-300">L/min</span>
+                    </div>
                   </div>
-                  <p className="mt-3 text-xs leading-5 text-slate-600">These actions simulate bedside medication and physiologic maneuvers for the LVAD patient. Diuretics shift PCWP while maintaining the current CVP:PCWP ratio.</p>
-                  {clinicalActionStatus ? (
-                    <p className="mt-3 text-xs leading-5 text-slate-700">{clinicalActionStatus}</p>
-                  ) : null}
+                  <div className="rounded-2xl border border-slate-700 bg-black p-4 shadow-sm">
+                    <div className="text-[11px] font-bold uppercase tracking-wide text-slate-300">Power</div>
+                    <div className="mt-2 flex items-baseline gap-1 font-mono">
+                      <span className="text-4xl font-black tabular-nums text-white">{format(displayedPower, 1)}</span>
+                      <span className="text-sm font-semibold text-slate-300">W</span>
+                    </div>
+                  </div>
+                  <RpmCard rpm={rpm} onDecrease={decreaseRpm} onIncrease={increaseRpm} showAllCurves={showAllRpmCurves} onToggleShowAllCurves={() => setShowAllRpmCurves((value) => !value)} />
+                  <div className="rounded-2xl border border-slate-700 bg-black p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[11px] font-bold uppercase tracking-wide text-slate-300">PI</div>
+                      <button type="button" onClick={() => setHidePiValue((value) => !value)} className="rounded-lg border border-slate-600 px-2 py-0.5 text-[10px] font-semibold text-slate-300 hover:bg-slate-800">
+                        {hidePiValue ? "show" : "hide"}
+                      </button>
+                    </div>
+                    <div className={`mt-2 font-mono text-4xl font-black tabular-nums text-white ${hidePiValue ? "blur-sm select-none" : ""}`}>
+                      {hidePiValue ? "--" : format(displayedPi, 1)}
+                    </div>
+                  </div>
                 </div>
               </>
             ) : null}
@@ -2054,19 +1971,66 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
               </div>
             ) : null}
 
-            {quizMode && !showEchoResults ? (
-              <div className="rounded-3xl border border-dashed border-slate-300 bg-white/70 p-6 shadow-sm">
-                <div className="text-lg font-semibold text-slate-900">POCUS image hidden</div>
-                <div className="mt-2 text-sm text-slate-600">Reveal the Echo/POCUS card from the quiz controls to display the ultrasound image.</div>
+            {quizMode ? (
+              <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                {showEchoResults ? (
+                  <>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-black uppercase tracking-wide text-slate-500">Bedside POCUS</div>
+                        <div className="mt-1 text-sm text-slate-600">Focused ultrasound findings to correlate with controller values and exam clues.</div>
+                      </div>
+                      <div className={`rounded-xl border px-2 py-1 text-xs font-bold ${aorticInsufficiency > 0 ? "border-orange-200 bg-orange-50 text-orange-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                        {aorticInsufficiency > 0 ? `AI present (${getAiSeverityLabel(aorticInsufficiency)}, ${format(aorticInsufficiency, 0)}%)` : "No AI detected"}
+                      </div>
+                    </div>
+                    <PlaxEchoImageCard
+                      lvContractility={lvContractility}
+                      rvContractility={rvContractility}
+                      cvpPcwpRatio={model.cvpPcwpRatio}
+                      avOpeningFraction={model.avOpeningFraction}
+                      hMin={model.hLow}
+                    />
+                    <div className="flex justify-end">
+                      <Button onClick={() => setShowEchoResults(false)} variant="outline" className="rounded-xl bg-white text-xs">
+                        Hide POCUS
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setShowEchoResults(true)}
+                    className="flex min-h-[180px] w-full items-center justify-between rounded-3xl border border-dashed border-slate-300 bg-white p-5 text-left shadow-sm transition hover:bg-slate-50"
+                  >
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-wide text-slate-500">Bedside POCUS</div>
+                      <div className="mt-3 text-lg font-semibold text-slate-900">POCUS image hidden</div>
+                      <div className="mt-2 text-sm text-slate-600">Click to reveal ultrasound findings.</div>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">Show POCUS</div>
+                  </button>
+                )}
               </div>
             ) : (
-              <PlaxEchoImageCard
-                lvContractility={lvContractility}
-                rvContractility={rvContractility}
-                cvpPcwpRatio={model.cvpPcwpRatio}
-                avOpeningFraction={model.avOpeningFraction}
-                hMin={model.hLow}
-              />
+              <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-black uppercase tracking-wide text-slate-500">Bedside POCUS</div>
+                    <div className="mt-1 text-sm text-slate-600">Focused ultrasound findings to correlate with controller values and exam clues.</div>
+                  </div>
+                  <div className={`rounded-xl border px-2 py-1 text-xs font-bold ${aorticInsufficiency > 0 ? "border-orange-200 bg-orange-50 text-orange-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                    {aorticInsufficiency > 0 ? `AI present (${getAiSeverityLabel(aorticInsufficiency)}, ${format(aorticInsufficiency, 0)}%)` : "No AI detected"}
+                  </div>
+                </div>
+                <PlaxEchoImageCard
+                  lvContractility={lvContractility}
+                  rvContractility={rvContractility}
+                  cvpPcwpRatio={model.cvpPcwpRatio}
+                  avOpeningFraction={model.avOpeningFraction}
+                  hMin={model.hLow}
+                />
+              </div>
             )}
 
             {false ? (
@@ -2077,7 +2041,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
           </div>
           <aside className="space-y-5">
               {advancedPhysiologyMode && !quizMode ? (
-              <HemodynamicMonitorCard map={map} model={model} displayedPumpFlow={displayedFlow} showDebugPanel={showDebugPanel} onToggleDebug={() => setShowDebugPanel((v) => !v)} pcwp={effectivePcwp} cvp={effectiveCvp} preloadMode={preloadMode} />
+              <HemodynamicMonitorCard map={map} model={model} displayedPumpFlow={displayedFlow} showDebugPanel={showDebugPanel} onToggleDebug={() => setShowDebugPanel((v) => !v)} pcwp={effectivePcwp} cvp={effectiveCvp} preloadMode={preloadMode} afterloadMode={afterloadMode} targetSvr={svr} />
             ) : null}
             <div className="rounded-3xl border bg-white/80 p-3 shadow-sm">
               <div className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-500">Physiology controls</div>
@@ -2085,6 +2049,8 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                 {quizMode ? (
                   <QuizMapCard
                     map={map}
+                    model={model}
+                    avOpeningFraction={model.avOpeningFraction}
                     revealed={showMapExam}
                     onReveal={() => setShowMapExam(true)}
                   />
@@ -2141,7 +2107,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                       alertTone={afterloadMode === "map" ? mapAlertTone : mapAlertTone}
                       alertNote={afterloadMode === "map" ? mapAlertNote : mapAlertNote}
                       note={afterloadMode === "map" ? (aorticInsufficiency > 0 ? `Effective MAP with AI ${format(model.effectiveMap, 0)} mmHg` : `MAP ${format(map, 0)} mmHg`) : `Computed MAP ${format(map, 0)} mmHg`}
-                      helper={afterloadMode === "map" ? "Higher MAP raises diastolic head pressure, tends to reduce flow, and modestly raises PCWP/LVEDP." : "Systemic vascular resistance in standard units. MAP is calculated from CVP, total cardiac output, and SVR."}
+                      helper={afterloadMode === "map" ? "Higher MAP raises diastolic head pressure, tends to reduce flow, and modestly raises PCWP/LVEDP." : "Systemic vascular resistance in standard units. MAP is calculated from CVP, Fick CO, and SVR."}
                     />
                     {preloadMode === "msfp" ? (
                       <SliderControl
@@ -2196,7 +2162,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     iconType="waves"
                     alertTone={pcwpAlertTone}
                     alertNote={pcwpAlertNote}
-                    note={aorticInsufficiency > 0 ? `Actual PCWP ${format(lvPreload, 1)} mmHg` : `Effective preload with AI ${format(model.effectiveLvPreload, 1)} mmHg`}
+                    note={aorticInsufficiency > 0 ? `Effective preload with AI ${format(model.effectiveLvPreload, 1)} mmHg` : undefined}
                     helper="Approximate LV filling pressure / pump inflow pressure during diastole. CVP tracks this unless RV contractility changes."
                   />
                 ) : null}
@@ -2227,32 +2193,26 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     note={`CVP:PCWP ${format(rvPreload / Math.max(lvPreload, 1), 2)} : 1`}
                   />
                 ) : null}
-
-                {quizMode ? (
-                  <QuizAICard
-                    aorticInsufficiency={aorticInsufficiency}
-                    revealed={showAiReveal}
-                    onReveal={() => setShowAiReveal(true)}
-                  />
-                ) : null}
-
 {quizMode ? (
 
-  <QuizEchoResultsCard
+  <>
 
-    lvContractility={lvContractility}
+  <div className="rounded-2xl border bg-white/70 p-4 shadow-sm">
+    <div className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Clinical actions</div>
+    <div className="grid gap-2 sm:grid-cols-2">
+      <Button onClick={increaseDiuretic} variant="outline" className="rounded-xl bg-white text-xs">Increase diuretic</Button>
+      <Button onClick={reduceDiuretic} variant="outline" className="rounded-xl bg-white text-xs">Reduce diuretic</Button>
+      <Button onClick={addAntihypertensive} variant="outline" className="rounded-xl bg-white text-xs">Add antihypertensive</Button>
+      <Button onClick={removeAntihypertensive} variant="outline" className="rounded-xl bg-white text-xs">Remove antihypertensive</Button>
+      <Button onClick={bedsideStandManeuver} variant="secondary" className="rounded-xl bg-white text-xs sm:col-span-2">Bedside stand maneuver</Button>
+    </div>
+    <p className="mt-3 text-xs leading-5 text-slate-600">These actions simulate bedside medication and physiologic maneuvers for the LVAD patient. Diuretics shift PCWP while maintaining the current CVP:PCWP ratio.</p>
+    {clinicalActionStatus ? (
+      <p className="mt-3 text-xs leading-5 text-slate-700">{clinicalActionStatus}</p>
+    ) : null}
+  </div>
 
-    rvContractility={rvContractility}
-
-    avOpeningFraction={model.avOpeningFraction}
-
-    hMin={Math.min(model.hLow, model.hHigh)}
-
-    revealed={showEchoResults}
-
-    onReveal={() => setShowEchoResults((value) => !value)}
-
-  />
+  </>
 
 ) : (
 
@@ -2296,6 +2256,39 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
             </div>
           </aside>
         </div>
+        {quizMode && activeCase && activeCaseQuestions.length > 0 ? (
+          <Card className="rounded-3xl border border-slate-200 bg-white/90 shadow-sm backdrop-blur">
+            <CardContent className="p-4">
+              <div className="text-xs font-black uppercase tracking-wide text-slate-500">
+                Follow-up questions
+              </div>
+              <div className="mt-2 text-sm font-black leading-6 text-slate-950">
+                Question {selectedCaseQuestionIndex + 1} of {activeCaseQuestions.length}: {activeCaseQuestion.question}
+              </div>
+              <div className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3 text-xs leading-5 text-slate-700">
+                <span className="font-bold text-indigo-700">Hint: </span>
+                {activeCaseQuestion.hint}
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <Button
+                  variant="outline"
+                  className="rounded-2xl px-3 py-2 text-xs"
+                  onClick={() => setSelectedCaseQuestionIndex((value) => Math.max(0, value - 1))}
+                >
+                  ← Previous
+                </Button>
+                <div className="text-xs font-bold text-slate-500">{selectedCaseQuestionIndex + 1} / {activeCaseQuestions.length}</div>
+                <Button
+                  variant="outline"
+                  className="rounded-2xl px-3 py-2 text-xs"
+                  onClick={() => setSelectedCaseQuestionIndex((value) => Math.min(activeCaseQuestions.length - 1, value + 1))}
+                >
+                  Next →
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
         <footer className="rounded-3xl border bg-white/70 p-4 text-xs leading-5 text-slate-500 shadow-sm">
           <div className="flex flex-col gap-3">
             <div>This prototype is for education only. It does not use Abbott proprietary pump equations and should not be used for patient care. HeartMate 3 displayed flow is estimated, not directly measured; clinical speed optimization requires LVAD parameters, MAP, symptoms, echo, invasive hemodynamics, and LVAD team judgment.</div>
@@ -2332,8 +2325,8 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                   </div>
                   <div className="rounded-xl bg-white p-3 shadow-sm">
                     <div className="font-bold text-slate-800">Preload supply cap</div>
-                    <p className="mt-1 text-xs leading-5 text-slate-600">When preload limiting is enabled, the patient-side supply cap can prevent the dot from reaching the theoretical high-flow portion of the HQ curve. Low PCWP/LVEDP and RV-limited filling can both lower Qcap.</p>
-                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">Displayed Q = min(HQ-derived Q, preload-supported Qcap)</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">Two parallel pathways blend to set the final Qcap. Low PCWP pathway: underfillCap = 2.5 + 5.5 × (PCWP − 5) / 8. RV-limited pathway: rvLimitedCap = 8.5 × (1 − 0.45 × max(0, (CVP/PCWP − 0.8) / 0.7)). The lower blended result is Qcap.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">Qcap = min(blended underfill, blended RV); Displayed Q = min(HQ Q, Qcap)</div>
                   </div>
                   <div className="rounded-xl bg-white p-3 shadow-sm">
                     <div className="font-bold text-slate-800">Pulsatility index</div>
@@ -2347,14 +2340,15 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                   </div>
                   <div className="rounded-xl bg-white p-3 shadow-sm">
                     <div className="font-bold text-slate-800">MAP → wedge pressure</div>
-                    <p className="mt-1 text-xs leading-5 text-slate-600">When MAP is changed directly, the model assumes afterload changes can secondarily shift PCWP/LVEDP. The effect is larger when LV contractile reserve is present, because a more functional LV is more sensitive to loading conditions.</p>
-                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">ΔPCWP = (ΔMAP / 10) × clamp(LV EF / 35, 0, 1)</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">Direct MAP changes do not independently shift PCWP/LVEDP in CVP preload mode. In MSFP preload mode, MAP contributes to the computed effective PCWP through the MSFP-to-PCWP conversion factor.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">CVP mode: ΔMAP does not directly change PCWP</div>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">MSFP mode: PCWP = clamp(MSFP × factor(MAP, RPM, LV EF), 2, 35)</div>
                   </div>
                   <div className="rounded-xl bg-white p-3 shadow-sm">
                     <div className="font-bold text-slate-800">MAP → CVP</div>
-                    <p className="mt-1 text-xs leading-5 text-slate-600">In simple mode, MAP-related PCWP changes are followed by CVP through the RV contractility-derived CVP:PCWP ratio. In advanced mode, CVP changes according to the pressure change in PCWP multiplied by an RV/LV stiffness coupling factor.</p>
-                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">Simple: CVP = PCWP × CVP:PCWP ratio</div>
-                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">Advanced: ΔCVP = ΔPCWP × clamp((RV stiffness / LV stiffness) × 0.65, 0.25, 1.6)</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">MAP does not directly change CVP. In CVP preload mode, CVP follows PCWP via the RV contractility-derived CVP:PCWP ratio when PCWP is updated. In MSFP preload mode, effective CVP is derived from effective PCWP and the same ratio.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">CVP mode: CVP ≈ PCWP × CVP:PCWP ratio (on preload updates)</div>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">MSFP mode: effective CVP = clamp(effective PCWP × CVP:PCWP ratio, 2, 35)</div>
                   </div>
                   <div className="rounded-xl bg-white p-3 shadow-sm">
                     <div className="font-bold text-slate-800">LV contractility → wedge pressure</div>
@@ -2371,6 +2365,12 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
                     <p className="mt-1 text-xs leading-5 text-slate-600">Changing RPM secondarily changes PCWP/LVEDP in the direction expected from LV unloading. Increasing RPM lowers PCWP/LVEDP; decreasing RPM raises PCWP/LVEDP. In this version, CVP is not directly changed by RPM unless another rule or mode links the pressure change forward.</p>
                     <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">RPM increase: ΔPCWP = -ΔRPM / 100</div>
                     <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">RPM decrease: ΔPCWP = +ΔRPM / 100</div>
+                  </div>
+                  <div className="rounded-xl bg-white p-3 shadow-sm md:col-span-2">
+                    <div className="font-bold text-slate-800">SVR mode and MAP calculation</div>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">In SVR mode, MAP is derived from the user-set SVR value, the calculated Fick cardiac output (pump + native flow accounting for aortic insufficiency), and the effective CVP. The model iterates to find the MAP that satisfies this relationship. Both the set SVR and the back-calculated SVR from the current MAP/CVP/CO are shown in debug mode for verification.</p>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">MAP = CVP + (SVR × Fick CO) / 80</div>
+                    <div className="mt-2 rounded-lg bg-slate-50 p-2 font-mono text-xs text-slate-700">Fick CO = Pump flow (or effective forward flow) + Native flow</div>
                   </div>
                 </div>
               </div>
