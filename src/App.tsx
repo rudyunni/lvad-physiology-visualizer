@@ -1309,6 +1309,7 @@ export default function LVADFlowLab() {
   const [lessonMode, setLessonMode] = useState(false);
   const [selectedLessonId, setSelectedLessonId] = useState(1);
   const [showAssumptions, setShowAssumptions] = useState(false);
+  const [showAboutModal, setShowAboutModal] = useState(false);
   const [selectedCaseId, setSelectedCaseId] = useState("free");
   const [selectedCaseQuestionIndex, setSelectedCaseQuestionIndex] = useState(0);
   const [monitorTick, setMonitorTick] = useState(0);
@@ -1616,6 +1617,15 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
 
+  useEffect(() => {
+    if (!showAboutModal) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowAboutModal(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showAboutModal]);
+
   const effectivePcwp = preloadMode === "msfp"
     ? computePcwpFromMsfp(msfp, rpm, lvContractility, map)
     : lvPreload;
@@ -1796,6 +1806,7 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
             </Button>
             <Button onClick={toggleQuizMode} variant={quizMode ? "default" : "outline"} className="rounded-2xl">{quizMode ? "Quiz mode on" : "Quiz mode off"}</Button>
             <Button onClick={togglePreloadCapWithHint} variant={showPreloadLimit ? "default" : "outline"} className="rounded-2xl">{showPreloadLimit ? "Preload cap on" : "Preload cap off"}</Button>
+            <Button onClick={() => setShowAboutModal(true)} variant="outline" className="rounded-2xl">About</Button>
             <Button onClick={() => setShowHQGraph((value) => !value)} variant={showHQGraph ? "outline" : "default"} className="rounded-2xl">{showHQGraph ? "Hide HQ graph" : "Show HQ graph"}</Button>
             <Button onClick={() => setPaused((value) => !value)} variant="outline" className="rounded-2xl">{paused ? "Play oscillation" : "Pause at mean flow"}</Button>
             <Button onClick={() => setAdvancedPhysiologyMode((value) => !value)} variant={advancedPhysiologyMode ? "default" : "outline"} className="rounded-2xl">{advancedPhysiologyMode ? "Advanced mode on" : "Advanced mode off"}</Button>
@@ -1809,6 +1820,47 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
         {preloadCapHint ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900 shadow-sm">
             {preloadCapHint}
+          </div>
+        ) : null}
+        {showAboutModal ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <button
+              type="button"
+              className="absolute inset-0 bg-slate-900/45"
+              aria-label="Close about dialog"
+              onClick={() => setShowAboutModal(false)}
+            />
+            <div className="relative z-10 w-full max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-wide text-slate-500">About This Tool</div>
+                  <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">LVAD Physiology Visualizer</h2>
+                </div>
+                <Button onClick={() => setShowAboutModal(false)} variant="outline" className="rounded-xl">Close</Button>
+              </div>
+              <div className="mt-4 space-y-4 text-sm leading-6 text-slate-700">
+                <p>
+                  This educational simulator is designed to teach core LVAD physiology by linking speed, preload,
+                  afterload, RV/LV contractility, and valve behavior to flow, power, pulsatility, and suction risk. 
+                  The model is intentionally simplified to focus on conceptual understanding rather than precise clinical prediction. It is not a substitute for professional medical judgment.
+                  The simulator is based on a lumped-parameter model of the cardiovascular system and LVAD, with parameters derived from published literature and clinical experience.
+                  The RPM curves have been estimated from Belkin et al. 2022 (PMC9106934).
+                </p>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-black uppercase tracking-wide text-slate-500">How To Use</div>
+                  <ol className="mt-2 list-decimal space-y-2 pl-5">
+                    <li>Pick a case or start free mode, then inspect baseline controller values and exam findings.</li>
+                    <li>Adjust RPM, MAP/SVR, and preload to see how the operating point moves on the HQ graph.</li>
+                    <li>Use quiz mode to hide/reveal clues (BP, exam, POCUS) and test hemodynamic reasoning.</li>
+                    <li>Compare interventions: speed changes, diuresis, antihypertensives, and bedside maneuvers.</li>
+                    <li>Use the assumptions panel for model rules and simplifications behind each behavior.</li>
+                  </ol>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Educational use only. This is a conceptual teaching model, not a clinical decision-support system.
+                </p>
+              </div>
+            </div>
           </div>
         ) : null}
         {lessonMode ? (
