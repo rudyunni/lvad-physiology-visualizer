@@ -1314,6 +1314,8 @@ export default function LVADFlowLab() {
   const [selectedCaseQuestionIndex, setSelectedCaseQuestionIndex] = useState(0);
   const [monitorTick, setMonitorTick] = useState(0);
   const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const [visitCount, setVisitCount] = useState(0);
+  const [clickCount, setClickCount] = useState(0);
 
 const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contractility, 0.45, 1.25);
 
@@ -1616,6 +1618,24 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
     window.localStorage.setItem("lvad-dark-mode", String(darkMode));
     document.documentElement.classList.toggle("dark", darkMode);
   }, [darkMode]);
+
+  useEffect(() => {
+    const visitKey = "lvad-visit-count";
+    const clickKey = "lvad-click-count";
+    const nextVisitCount = Number(window.localStorage.getItem(visitKey) || "0") + 1;
+    window.localStorage.setItem(visitKey, String(nextVisitCount));
+    setVisitCount(nextVisitCount);
+    setClickCount(Number(window.localStorage.getItem(clickKey) || "0"));
+
+    const onDocumentClick = () => {
+      const nextClickCount = Number(window.localStorage.getItem(clickKey) || "0") + 1;
+      window.localStorage.setItem(clickKey, String(nextClickCount));
+      setClickCount(nextClickCount);
+    };
+
+    document.addEventListener("click", onDocumentClick);
+    return () => document.removeEventListener("click", onDocumentClick);
+  }, []);
 
   useEffect(() => {
     if (!showAboutModal) return;
@@ -2430,7 +2450,16 @@ const rvRatioFromContractility = (contractility) => clamp(1.25 - 0.023 * contrac
           </div>
         </footer>
       </div>
-      <footer className="mt-8 border-t border-slate-200 pt-4 text-center text-xs text-slate-500"><div>Created by Dr. Rudy Unni, MD</div><div className="mt-1 inline-flex rounded-xl border bg-white px-3 py-1 text-[11px] font-medium text-slate-500">LVAD FlowLab v7.9 - case selector</div></footer>
+      <footer className="mt-8 border-t border-slate-200 pt-4 text-center text-xs text-slate-500">
+        <div>Created by Dr. Rudy Unni, MD</div>
+        <div className="mt-1 inline-flex flex-wrap items-center justify-center gap-2 rounded-xl border bg-white px-3 py-1 text-[11px] font-medium text-slate-500">
+          <span>LVAD FlowLab v7.9 - case selector</span>
+          <span>•</span>
+          <span>Visits {visitCount}</span>
+          <span>•</span>
+          <span>Clicks {clickCount}</span>
+        </div>
+      </footer>
     </div>
   );
 }
